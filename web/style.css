@@ -1,0 +1,147 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #1c2430;
+  --muted: #5b6675;
+  --border: #dde2e9;
+  --accent: #1f5fbf;
+  --ok: #17734a;
+  --ok-bg: #e3f4ec;
+  --bad: #b3261e;
+  --bad-bg: #fbe7e5;
+  --warn: #8a5a00;
+  --warn-bg: #fdf1d8;
+  --quote-bg: #f1f4f9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161c;
+    --card: #1a2029;
+    --text: #e6eaf0;
+    --muted: #9aa5b5;
+    --border: #2b3441;
+    --accent: #6ea3f5;
+    --ok: #63d19b;
+    --ok-bg: #16352a;
+    --bad: #ff8a80;
+    --bad-bg: #3a1f1d;
+    --warn: #f2c265;
+    --warn-bg: #3a2f14;
+    --quote-bg: #212a36;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.wrap { max-width: 860px; margin: 0 auto; padding-inline: 16px; }
+main.wrap { padding-block: 20px 8px; }
+
+.top { background: var(--card); border-bottom: 1px solid var(--border); }
+.top-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 20px; letter-spacing: 0.2px; }
+h2 { margin: 0 0 4px; font-size: 17px; }
+h3 { margin: 0; font-size: 15px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.hint { color: var(--muted); margin: 0 0 12px; }
+
+textarea {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  resize: vertical;
+}
+textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.examples { color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.btn {
+  font: inherit;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.6; cursor: wait; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn-link { border: 0; background: none; color: var(--accent); padding: 0; text-decoration: underline; }
+
+.chip {
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+
+.pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+.pill-ok { color: var(--ok); background: var(--ok-bg); }
+.pill-bad { color: var(--bad); background: var(--bad-bg); }
+.pill-warn { color: var(--warn); background: var(--warn-bg); }
+.pill-muted { color: var(--muted); background: var(--quote-bg); }
+
+.source-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.sub { color: var(--muted); font-size: 13px; }
+
+.checks { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+
+blockquote {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--quote-bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+}
+blockquote p { margin: 0 0 4px; }
+blockquote .meta { color: var(--muted); font-size: 12px; }
+
+.notice { border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+.notice-warn { background: var(--warn-bg); color: var(--warn); }
+.notice-bad { background: var(--bad-bg); color: var(--bad); }
+.notice strong { display: block; margin-bottom: 2px; }
+.notice ul { margin: 6px 0 0; padding-left: 18px; color: var(--text); }
+.notice li { margin-bottom: 6px; }
+
+.blocked { border-color: var(--bad); }
+.hidden-content { margin-top: 8px; padding: 10px 12px; border: 1px dashed var(--bad); border-radius: 8px; }
+.hidden-content .label { font-size: 12px; font-weight: 600; color: var(--bad); margin-bottom: 4px; }
+
+.disclaimer { color: var(--muted); font-size: 13px; text-align: center; margin: 4px 0 16px; }
+.foot { color: var(--muted); font-size: 12px; padding-block: 8px 24px; text-align: center; }
+.error { color: var(--bad); }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
