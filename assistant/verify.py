@@ -21,6 +21,7 @@ degrades to "verified" because something was unavailable.
 """
 
 import json
+import os
 import secrets
 import time
 from pathlib import Path
@@ -36,13 +37,32 @@ DEFAULT_MESSAGES = {
 }
 SIMULATED_SUFFIX = " (simulated)"
 
+# Which of the four checks are real today. /health reports this so the UI never has to guess.
+LIVE_CHECKS = ["dns", "cert"]
+SIMULATED_CHECKS = ["log", "current"]
+
+
+def describe_verification() -> dict:
+    """What the identity check is made of right now. Static (no network), so /health stays fast.
+
+    `dnssecBypass` is the caveat that matters: while the registrar has an orphaned DS record on
+    the zone, the DNS check only works with ANS_ALLOW_UNVALIDATED_DNS=1, which skips DNSSEC.
+    """
+    return {
+        "mode": "live-dns",
+        "live": LIVE_CHECKS,
+        "simulated": SIMULATED_CHECKS,
+        "dnssecBypass": os.environ.get("ANS_ALLOW_UNVALIDATED_DNS") == "1",
+    }
+
 # Live checks hit the network. Cache briefly so a page of results does not
 # re-resolve DNS and re-challenge every agent on every request.
 # Keyed by (name, endpoint), not name alone: two config entries can share an
 # ANS name while pointing at different hosts - the replay attacker does exactly
 # that - and they must not inherit each other's result.
 _CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
-CACHE_TTL_SECONDS = 30.0
+CACHE_TTL_SECONDS = 120.0    # a passed check is trusted this long (each answer is still signature-checked)
+FAILURE_TTL_SECONDS = 15.0   # a failed one is retried soon, so a slow start cannot keep an agent blocked
 
 
 def _load_agents():
@@ -128,8 +148,10 @@ def is_agent_verified(name: str, endpoint: str | None = None) -> dict:
 
     cache_key = (name, agent["endpoint"] if agent else "")
     cached = _CACHE.get(cache_key)
-    if cached and time.monotonic() - cached[0] < CACHE_TTL_SECONDS:
-        return cached[1]
+    if cached:
+        ttl = CACHE_TTL_SECONDS if cached[1]["ok"] else FAILURE_TTL_SECONDS
+        if time.monotonic() - cached[0] < ttl:
+            return cached[1]
 
     if agent is None:
         # Unknown name: nothing registered anywhere.
