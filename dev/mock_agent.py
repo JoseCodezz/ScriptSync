@@ -6,6 +6,7 @@ the real agent works. The text below is PLACEHOLDER, not label text.
     python -m dev.mock_agent --port 9101 --which A --mode lookalike
 """
 import argparse
+import os
 from datetime import datetime, timedelta, timezone
 
 import uvicorn
@@ -96,10 +97,10 @@ def build_app(which: str, mode: str, name_override: str | None) -> FastAPI:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, required=True)
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 9001)))
     ap.add_argument("--which", choices=["A", "B"], required=True)
     ap.add_argument("--mode", default="normal",
                     choices=["normal", "lookalike", "expired", "replay", "revoked"])
     ap.add_argument("--name", default=None, help="override agentName (attackers)")
     a = ap.parse_args()
-    uvicorn.run(build_app(a.which, a.mode, a.name), host="127.0.0.1", port=a.port, log_level="warning")
+    uvicorn.run(build_app(a.which, a.mode, a.name), host="0.0.0.0", port=a.port, log_level="warning")
