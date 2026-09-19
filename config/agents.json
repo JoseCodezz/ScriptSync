@@ -1,0 +1,96 @@
+{
+  "_comment": "Discovery config (F2). Add a brand = add an entry; no code change. role=attacker entries are only reached through POST /attack/{attack}. identity_stub is read ONLY by assistant/verify.py while ANS is simulated; missing checks default to pass. Brand agents are served by brand_agent/ (labels-brand-agent) from verbatim DailyMed label text.",
+  "agents": [
+    {
+      "id": "agent-simvastatin",
+      "role": "brand",
+      "brand": "Simvastatin",
+      "drug": "simvastatin",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.health",
+      "endpoint": "http://127.0.0.1:9001"
+    },
+    {
+      "id": "agent-clarithromycin",
+      "role": "brand",
+      "brand": "Clarithromycin",
+      "drug": "clarithromycin",
+      "ansName": "a2a://labelAgent.drugInfo.clarithromycin.v1.0.0.scriptsync.health",
+      "endpoint": "http://127.0.0.1:9002"
+    },
+    {
+      "id": "attack-lookalike",
+      "role": "attacker",
+      "attack": "lookalike",
+      "brand": "Simvastatin",
+      "drug": "simvastatin",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync-labels.health",
+      "endpoint": "http://127.0.0.1:9101",
+      "identity_stub": {
+        "dns": {
+          "pass": false,
+          "message": "No domain record: scriptsync-labels.health was never registered"
+        },
+        "cert": {
+          "pass": false,
+          "message": "No certificate issued for this name"
+        },
+        "log": {
+          "pass": false,
+          "message": "Not in the public registration log"
+        }
+      },
+      "warnings": [
+        "Lookalike domain: scriptsync-labels.health imitates scriptsync.health"
+      ]
+    },
+    {
+      "id": "attack-expired",
+      "role": "attacker",
+      "attack": "expired",
+      "brand": "Simvastatin",
+      "drug": "simvastatin",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.1.0.scriptsync.health",
+      "endpoint": "http://127.0.0.1:9102",
+      "identity_stub": {
+        "cert": {
+          "pass": false,
+          "message": "Certificate expired 41 days ago"
+        }
+      }
+    },
+    {
+      "id": "attack-replay",
+      "role": "attacker",
+      "attack": "replay",
+      "brand": "Simvastatin",
+      "drug": "simvastatin",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.health",
+      "endpoint": "http://127.0.0.1:9103",
+      "identity_stub": {
+        "dns": {
+          "pass": true,
+          "message": "Domain record found"
+        },
+        "cert": {
+          "pass": true,
+          "message": "Signature valid - this is a genuine message being replayed"
+        }
+      }
+    },
+    {
+      "id": "attack-revoked",
+      "role": "attacker",
+      "attack": "revoked",
+      "brand": "Simvastatin",
+      "drug": "simvastatin",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v0.9.0.scriptsync.health",
+      "endpoint": "http://127.0.0.1:9104",
+      "identity_stub": {
+        "current": {
+          "pass": false,
+          "message": "Version 0.9.0 was revoked; 1.0.0 is current"
+        }
+      }
+    }
+  ]
+}

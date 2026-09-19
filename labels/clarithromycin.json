@@ -1,0 +1,146 @@
+{
+  "_meta": {
+    "source": "openFDA / DailyMed Structured Product Label",
+    "spl_id": "41392bb7-d916-446c-e063-6294a90a2c5c",
+    "effective_time": "20251015",
+    "retrieved": "2026-09-19",
+    "verbatim": true,
+    "note": "Demo agent serving the public DailyMed label for clarithromycin. Not operated by any manufacturer. Passages are verbatim slices of the source SPL; section numbers and titles are read from the label text; char_start/char_end index into the named openFDA field."
+  },
+  "agent": {
+    "drug": "clarithromycin",
+    "brand": "Clarithromycin",
+    "displayName": "Clarithromycin label agent",
+    "subtitle": "demo agent serving the public DailyMed label, not operated by the manufacturer"
+  },
+  "labelVersion": "SPL 20251015",
+  "sections": [
+    {
+      "section": "4.5",
+      "title": "Lomitapide, Lovastatin, and Simvastatin",
+      "tags": [
+        "CYP3A",
+        "interaction"
+      ],
+      "text": "4.5 Lomitapide, Lovastatin, and Simvastatin Concomitant administration of clarithromycin tablets with lomitapide is contraindicated due to potential for markedly increased transaminases [see Warnings and Precautions ( 5.4 ) and Drug Interactions ( 7 )]. Concomitant administration of clarithromycin tablets with HMG-CoA reductase inhibitors (statins) that are extensively metabolized by CYP3A4 (lovastatin or simvastatin) is contraindicated, due to the increased risk of myopathy, including rhabdomyolysis [see Warnings and Precautions ( 5.4 ) and Drug Interactions ( 7 )].",
+      "source": {
+        "field": "contraindications",
+        "char_start": 1487,
+        "char_end": 2061,
+        "truncated": false,
+        "header_preview": "4.5 Lomitapide, Lovastatin, and Simvastatin Concomitant administration of clarithromycin tablets with lomitapi"
+      }
+    },
+    {
+      "section": "7",
+      "title": "Drug Interactions - lipid-lowering agents",
+      "tags": [
+        "CYP3A",
+        "interaction",
+        "monitoring"
+      ],
+      "text": "Lipid-lowering agents: Lomitapide Lovastatin Simvastatin Contraindicated Lomitapide, Lovastatin, Simvastatin: Clarithromycin may increase the exposure of these drugs by inhibition of CYP3A metabolism, thereby increasing the risk of toxicities from these drugs [see Contraindications ( 4.5 ) and Warnings and Precautions ( 5.4 )] Atorvastatin, Pravastatin, Fluvastatin: [See Warnings and Precautions ( 5.4 )] Atorvastatin Pravastatin Use With Caution Fluvastatin No Dose Adjustment Hypoglycemic Agents: Nateglinide Pioglitazone Repaglinide Rosiglitazone Use With Caution Nateglinide, Pioglitazone, Repaglinide, Rosiglitazone: [See Warnings and Precautions ( 5.4 ) and Adverse Reactions ( 6.2 )] Insulin Insulin: [See Warnings and Precautions ( 5.4 ) and Adverse Reactions ( 6.2 )] Immunosuppressants: Cyclosporine Use With Caution Cyclosporine: There have been spontaneous or published reports of CYP3A based interactions of clarithromycin with cyclosporine. Tacrolimus Tacrolimus: There have been spontaneous or published reports of CYP3A based interactions of clarithromycin with tacrolimus. Phosphodiesterase inhibitors: Sildenafil Tadalafil Vardenafil Use With Caution Sildenafil, Tadalafil, Vardenafil: Each of these phosphodiesterase inhibitors is primarily metabolized by CYP3A, and CYP3A will be inhibited by concomitant administration of clarithromycin.",
+      "source": {
+        "field": "drug_interactions",
+        "char_start": 8842,
+        "char_end": 10203,
+        "truncated": true,
+        "header_preview": "7 DRUG INTERACTIONS Co-administration of clarithromycin tablets is known to inhibit CYP3A, and a drug primaril"
+      }
+    },
+    {
+      "section": "4.4",
+      "title": "Colchicine",
+      "tags": [
+        "interaction",
+        "renal"
+      ],
+      "text": "4.4 Colchicine Concomitant administration of clarithromycin tablets and colchicine is contraindicated in patients with renal or hepatic impairment.",
+      "source": {
+        "field": "contraindications",
+        "char_start": 1339,
+        "char_end": 1487,
+        "truncated": false,
+        "header_preview": "4.4 Colchicine Concomitant administration of clarithromycin tablets and colchicine is contraindicated in patie"
+      }
+    },
+    {
+      "section": "2.2",
+      "title": "Adult Dosage",
+      "tags": [
+        "dosing"
+      ],
+      "text": "2.2 Adult Dosage The recommended dosages of clarithromycin tablets for the treatment of mild to moderate infections in adults are listed in Table 1 . Table 1. Adult Dosage Guidelines Infection Clarithromycin Tablets Dosage (every 12 hours) Duration (days) Acute bacterial exacerbation of chronic bronchitis 250 to 500 mg 7 \u2020 -",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 867,
+        "char_end": 1193,
+        "truncated": false,
+        "header_preview": "2.2 Adult Dosage The recommended dosages of clarithromycin tablets for the treatment of mild to moderate infec"
+      }
+    },
+    {
+      "section": "2.6",
+      "title": "Dosage Adjustment in Patients with Renal Impairment",
+      "tags": [
+        "renal",
+        "dosing"
+      ],
+      "text": "2.6 Dosage Adjustment in Patients with Renal Impairment See Table 2 for dosage adjustment in patients with moderate or severe renal impairment with or without concomitant atazanavir or ritonavir-containing regimens [see Drug Interactions ( 7 )]. Table 2. Clarithromycin Tablets Dosage Adjustments in Patients with Renal Impairment Recommended Clarithromycin Tablets Dosage Reduction Patients with severe renal impairment (CL cr of <30 mL/min) Reduce the dosage of clarithromycin tablets by 50% Patients with moderate renal impairment (CL cr of 30 to 60 mL/min) taking concomitant atazanavir or ritonavir-containing regimens Reduce the dosage of clarithromycin tablets by 50% Patients with severe renal impairment (CL cr of <30 mL/min) taking concomitant atazanavir or ritonavir-containing regimens Reduce the dosage of clarithromycin tablets by 75%",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 4638,
+        "char_end": 5487,
+        "truncated": false,
+        "header_preview": "2.6 Dosage Adjustment in Patients with Renal Impairment See Table 2 for dosage adjustment in patients with mod"
+      }
+    },
+    {
+      "section": "2.7",
+      "title": "Dosage Adjustment Due to Drug Interactions",
+      "tags": [
+        "dosing",
+        "interaction"
+      ],
+      "text": "2.7 Dosage Adjustment Due to Drug Interactions Decrease the dose of clarithromycin tablets by 50 % when co-administered with atazanavir [see Drug Interactions ( 7 )] . Dosage adjustments for other drugs when co-administered with clarithromycin tablets may be recommended due to drug interactions [see Drug Interactions ( 7 )] .",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 5487,
+        "char_end": 5814,
+        "truncated": false,
+        "header_preview": "2.7 Dosage Adjustment Due to Drug Interactions Decrease the dose of clarithromycin tablets by 50 % when co-adm"
+      }
+    },
+    {
+      "section": "1.3",
+      "title": "Community-Acquired Pneumonia",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.3 Community-Acquired Pneumonia Clarithromycin tablets are indicated [see Indications and Usage ( 1.9 )] for the treatment of mild to moderate infections caused by susceptible isolates due to: Haemophilus influenzae (in adults) Mycoplasma pneumoniae, Streptococcus pneumoniae, Chlamydophila pneumoniae (in adults and pediatric patients)",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 1507,
+        "char_end": 1845,
+        "truncated": false,
+        "header_preview": "1.3 Community-Acquired Pneumonia Clarithromycin tablets are indicated [see Indications and Usage ( 1.9 )] for"
+      }
+    },
+    {
+      "section": "8.5",
+      "title": "Geriatric Use",
+      "tags": [
+        "older-adults",
+        "renal"
+      ],
+      "text": "8.5 Geriatric Use In a steady-state study in which healthy elderly subjects (65 years to 81 years of age) were given 500 mg of clarithromycin tablets every 12 hours, the maximum serum concentrations and area under the curves of clarithromycin and 14-OH clarithromycin were increased compared to those achieved in healthy young adults. These changes in pharmacokinetics parallel known age-related decreases in renal function. In clinical trials, elderly patients did not have an increased incidence of adverse reactions when compared to younger patients. Consider dosage adjustment in elderly patients with severe renal impairment. Elderly patients may be more susceptible to development of torsades de pointes arrhythmias than younger patients [see Warnings and Precautions ( 5.3 )] . Most reports of acute kidney injury with calcium channel blockers metabolized by CYP3A4 (e.g., verapamil, amlodipine, diltiazem, nifedipine) involved elderly patients 65 years of age or older [see Warnings and Precautions ( 5.4 )] . Especially in elderly patients, there have been reports of colchicine toxicity with concomitant use of clarithromycin and colchicine, some of which occurred in patients with renal insufficiency. Deaths have been reported in some patients [see Contraindications ( 4.4 ) and Warnings and Precautions ( 5.4 )] .",
+      "source": {
+        "field": "geriatric_use",
+        "char_start": 0,
+        "char_end": 1326,
+        "truncated": false,
+        "header_preview": "8.5 Geriatric Use In a steady-state study in which healthy elderly subjects (65 years to 81 years of age) were"
+      }
+    }
+  ]
+}
