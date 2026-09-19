@@ -3,7 +3,9 @@ tags in the label data. Every statement is a verbatim label passage.
 
 TAG CONTRACT (label authors must use these tag spellings):
   CYP3A, interaction, dosing, indication, monitoring, liver,
-  renal, pregnancy, older-adults, pediatric
+  renal, pregnancy, older-adults, pediatric, switching
+  (switching = a passage that actually addresses changing from one drug to another.
+   Most labels have none, so a switching question usually ends in 'Not covered'.)
 """
 
 # Tags too generic to count as an overlap on their own.
@@ -16,6 +18,8 @@ COVERAGE_TOPICS = {
     "older-adults": ["elderly", "older adult", "geriatric"],
     "pediatric": ["child", "pediatric", "infant"],
     "liver": ["liver", "hepatic"],
+    "switching": ["switch", "transition", "convert", "conversion", "taper", "washout",
+                  "change from", "changing from", "replace", "instead of"],
 }
 
 OVERLAP_NOTE = (
