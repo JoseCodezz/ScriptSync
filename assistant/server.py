@@ -27,15 +27,10 @@ from assistant.understand import analyze, build_notices, drug_gaps, find_phi
 from assistant.verify import describe_verification, is_agent_verified
 from common.signing import SIGNING_MODE, check_freshness, verify_signature
 
-<<<<<<< HEAD
-AGENT_TIMEOUT = 5.0
-=======
-ROOT = Path(__file__).resolve().parent.parent
 # Brand agents call a model to choose label sections, so responses take a few
 # seconds - the old 5s ceiling was written for the instant mock agents and made
 # real agents drop out intermittently as "unreachable".
 AGENT_TIMEOUT = float(os.environ.get("SCRIPTSYNC_AGENT_TIMEOUT", "45"))
->>>>>>> 7afd121 (Fix agent timeout, query agents concurrently, tune selection effort)
 
 # Presenter-only features (impostor tests) exist only when the assistant is started with
 # SCRIPTSYNC_DEMO=1. The product API never exposes them.
