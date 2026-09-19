@@ -150,8 +150,13 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
         }
 
         if selection.refuse:
-            response["reason"] = selection.reason or (
-                f"This agent only answers from the {drug} label."
+            # Fixed wording, not the model's. Every other field the clinician
+            # sees is verbatim label text; letting model-authored prose through
+            # here would be the one place its own words reached a doctor.
+            # selection.reason is kept out of the response on purpose.
+            response["reason"] = (
+                f"The {drug} label has no passage covering that. "
+                "This agent answers only from its own approved label."
             )
         else:
             # Text comes from the label file, never from the model.
