@@ -19,6 +19,8 @@ const EVENT_LABELS = {
   skipped: "Skipped", attack: "Impostor test started", rules_changed: "Rules updated",
   handoff_draft: "Handoff drafted", phi_blocked: "Patient identifiers refused",
 };
+// The assistant's verification mode, in words a doctor (or a judge) can read.
+const modeLabel = (m) => (m === "live-dns" ? "2 of 4 checks live" : m === "simulated" ? "simulated" : String(m || "simulated"));
 const BLOCK_EVENTS = new Set(["verify_failed", "signature_failed", "freshness_failed", "identity_mismatch"]);
 const SUGGESTIONS = ["Can simvastatin be taken with clarithromycin?", "What do I need to know about CYP3A interactions?", "Should I switch from simvastatin to atorvastatin?"];
 const DEFAULT_Q = SUGGESTIONS[0];
@@ -62,7 +64,7 @@ function checkRows(v, failedIds = [], reveal = false) {
   for (const id of failedIds) if (!CK.some((c) => c[0] === id)) rows.push({ label: EXTRA_CHECKS[id] || id, pass: false, msg: "" });
   return rows.map((r) => {
     const s = r.pass ? "done" : "bad";
-    return `<li ${reveal ? `data-s="${s}"` : `class="${s}"`}>${esc(r.label)}${!r.pass && r.msg ? `<span class="mono">${esc(r.msg)}</span>` : ""}</li>`;
+    return `<li ${reveal ? `data-s="${s}"` : `class="${s}"`}>${esc(r.label)}${(!reveal || !r.pass) && r.msg ? `<span class="mono">${esc(r.msg)}</span>` : ""}</li>`;
   }).join("");
 }
 
@@ -117,7 +119,7 @@ function pendingCard(a) {
 function resultCard(kind, r) {
   const v = r.verification;
   const chip = {
-    verified: `<span class="chip ok">Verified (${esc(v?.mode || "simulated")})</span>`,
+    verified: `<span class="chip ok">Verified (${esc(modeLabel(v?.mode))})</span>`,
     refused: '<span class="chip ok">Verified · declined to answer</span>',
     blocked: '<span class="chip bad">Blocked</span>',
     unreachable: '<span class="chip">Verified · did not respond</span>',
@@ -159,7 +161,7 @@ function sourceColumn(s, seq, asked) {
   const glance = (s.answers || []).length > 1
     ? `<div class="glance">At a glance ${s.answers.map((a, i) => `<button type="button" data-jump="${esc(ids[i])}">§${esc(a.section)} ${esc(shortTitle(a.title))}</button>`).join("")}</div>` : "";
   return `<div class="src"><div class="srchead"><h4>${esc(s.brand)} label agent</h4>
-    <span class="chip ok">✓ Verified (${esc(s.verification?.mode || "simulated")})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>${asked ? '<span class="chip v">Asked about</span>' : ""}
+    <span class="chip ok">✓ Verified (${esc(modeLabel(s.verification?.mode))})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>${asked ? '<span class="chip v">Asked about</span>' : ""}
     <div class="mono">${esc(s.ansName)} · signed ${esc(s.timestamp || "?")}</div>${glance}
     <details class="how"><summary>Identity checks</summary><ul class="ck">${checkRows(s.verification)}</ul></details></div>
     ${(s.answers || []).map((a, i) => passageCard(a, ids[i])).join("")}</div>`;
@@ -200,7 +202,7 @@ function answerHtml(d) {
     d.refused.length ? `<span class="chip">${d.refused.length} verified, declined</span>` : "",
     d.skipped.length ? `<span class="chip">${d.skipped.length} skipped</span>` : "",
     d.unreachable.length ? `<span class="chip bad">${d.unreachable.length} unreachable</span>` : "",
-    `<span class="chip v">verification ${esc(mode)}</span>`,
+    `<span class="chip v">verification: ${esc(modeLabel(mode))}</span>`,
   ].join("");
   const seq = ++state.seq;
   return `<div class="asked">You asked: “${esc(d.question)}”</div><div class="strip">${strip}</div>`
@@ -229,6 +231,12 @@ function setBusy(b) {
 async function ask(question, { impostor } = {}) {
   question = question.trim();
   if (!question || state.busy) return;
+  if (impostor && state.health && state.health.demo === false) {
+    $("#empty")?.remove();
+    addBot('<div class="note err" style="margin-top:0">Impostor tests are switched off on this assistant. Restart it with SCRIPTSYNC_DEMO=1 (scripts/start_all.ps1 does this by default).</div>');
+    scrollDown();
+    return;
+  }
   setBusy(true);
   state.lastQuestion = question;
   $("#empty")?.remove();
@@ -239,10 +247,11 @@ async function ask(question, { impostor } = {}) {
   const body = botEl.querySelector(".body");
   scrollDown();
   pulse(false);
+  let attackError = null;
   try {
     const [data, attack] = await Promise.all([
       send("POST", "/ask", { question }),
-      impostor ? send("POST", `/attack/${encodeURIComponent(impostor)}`, { question }).catch(() => null) : null,
+      impostor ? send("POST", `/attack/${encodeURIComponent(impostor)}`, { question }).catch((e) => { attackError = e; return null; }) : null,
     ]);
     if (attack && attack.status === "blocked") data.blocked.push(attack);
 
@@ -267,6 +276,7 @@ async function ask(question, { impostor } = {}) {
     if (texts.length) state.sawAnswers = true;
     if (texts.some((t) => t.includes("[PLACEHOLDER"))) state.sawPlaceholder = true;
     body.innerHTML = answerHtml(data);
+    if (attackError) body.insertAdjacentHTML("beforeend", `<div class="note err">The impostor test failed: ${esc(attackError.message)}</div>`);
     botEl.scrollIntoView({ block: "start", behavior: "smooth" });
   } catch (err) {
     if (/patient identifiers/i.test(err.message)) userEl.querySelector(".bubble").textContent = "Message withheld: it looked like it contained patient identifiers.";
@@ -365,7 +375,11 @@ async function loadHealth() {
   catch { state.health = null; state.online = false; }
   $("#statusBtn").classList.toggle("off", !state.online);
   const v = state.health?.verification;
-  $("#modeText").textContent = state.online ? `${v.charAt(0).toUpperCase() + v.slice(1)} verification` : "Assistant offline";
+  const vd = state.health?.verificationDetail;
+  $("#modeText").textContent = !state.online ? "Assistant offline"
+    : v === "live-dns" && vd ? `Verification: ${vd.live.length} of ${vd.live.length + vd.simulated.length} checks live`
+    : "Simulated verification";
+  $("#statusBtn").title = "What is live and what is simulated";
   renderTransparency();
 }
 
@@ -375,7 +389,7 @@ async function loadAgents() {
   $("#agents").innerHTML = state.agents.length ? state.agents.map((a) => {
     const v = a.verification;
     return `<div class="card"><h4>${esc(a.brand)} label agent</h4><div class="mono">${esc(a.ansName)}</div>
-      <span class="chip ${v.ok ? "ok" : "bad"}">${v.ok ? "✓ identity ok" : "✕ identity failed"} (${esc(v.mode)})</span><span class="chip v">demo agent</span><span class="chip">not run by the manufacturer</span>
+      <span class="chip ${v.ok ? "ok" : "bad"}">${v.ok ? "✓ identity ok" : "✕ identity failed"} (${esc(modeLabel(v.mode))})</span><span class="chip v">demo agent</span><span class="chip">not run by the manufacturer</span>
       <ul class="ck">${checkRows(v)}</ul></div>`;
   }).join("") : '<div class="empty">No agents are configured.</div>';
 }
@@ -439,7 +453,7 @@ $("#tl").addEventListener("click", (e) => {
 
 $("#dl").onclick = async () => {
   await refreshLog();
-  const report = { generated: new Date().toISOString(), verificationMode: state.health?.verification, signingMode: state.health?.signing, rules: state.rules, events: state.log };
+  const report = { generated: new Date().toISOString(), verificationMode: state.health?.verification, verificationDetail: state.health?.verificationDetail, signingMode: state.health?.signing, rules: state.rules, events: state.log };
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
   a.download = "scriptsync-report.json";
@@ -450,14 +464,18 @@ $("#dl").onclick = async () => {
 function renderTransparency() {
   const h = state.health, on = state.online;
   const label = state.sawPlaceholder ? ["bad", "Placeholder"] : state.sawAnswers ? ["ok", "Cached snapshot"] : ["", "Not seen yet"];
-  const ver = h?.verification || "simulated";
+  const vd = h?.verificationDetail;
+  const live = on && vd && (vd.live || []).length > 0;
   const rows = [
     ["The assistant", "Runs on this machine; this page reads it live", on ? ["ok", "Live · local"] : ["bad", "Offline"]],
-    ["ANS identity checks", "Read from a config file. A live DNS check exists but is not wired into the assistant yet", !on || ver === "simulated" ? ["bad", "Simulated"] : ["ok", ver]],
+    ["Identity: domain record + key possession", "Each agent's key is looked up in DNS, and the agent must sign a fresh challenge with that key",
+      !on ? ["bad", "Offline"] : !live ? ["bad", "Simulated"] : vd.dnssecBypass ? ["bad", "Live · DNSSEC bypassed"] : ["ok", "Live"]],
+    ["Identity: registry log + revocation", "There is no public registration log or revocation registry yet, so these two checks are simulated and labelled as such", ["bad", "Simulated"]],
     ["Signatures", "HMAC-SHA256 with a shared demo key", ["bad", "Demo key"]],
     ["Label text", "Verbatim passages from public DailyMed / openFDA labels, saved ahead of time, with section and version. Only a hand-picked set of passages is served, so \"Not covered\" means outside those passages", label],
     ["Overlap and gaps", "Tag matching, no language model", ["ok", "Deterministic"]],
     ["Contact rules", "Allowed brands are enforced. Quiet hours and urgent-alert rules are stored but not enforced yet", ["bad", "Partly built"]],
+    ["Impostor tests", "Presenter-only. Available only when the assistant is started with SCRIPTSYNC_DEMO=1", on && h.demo ? ["v", "Demo mode on"] : ["", "Off"]],
     ["Patient data", "Questions that look like patient identifiers are refused and never logged", ["ok", "Guarded"]],
   ];
   $("#clear").innerHTML = rows.map(([t, d, [cls, txt]]) => `<div class="line"><div>${esc(t)}<small>${esc(d)}</small></div><span class="chip ${cls}">${esc(txt)}</span></div>`).join("");
@@ -472,7 +490,7 @@ const STEPS = [
   { title: "Rules", note: "Turn a brand off and save, then ask again: it is skipped.", panel: "rules" },
   { title: "Activity and report", note: "The audit log, counters and JSON export. Question text is never stored.", panel: "activity" },
   { title: "Patient details refused", note: "A date of birth is refused, the message is withheld, and nothing is logged.", q: "Patient DOB 01/01/1970 is on simvastatin. What interacts?" },
-  { title: "What's simulated", note: "Say it out loud: simulated verification, demo signing key.", panel: "status" },
+  { title: "What's live vs simulated", note: "Say it out loud: DNS key + signed challenge are live; registry log and revocation are simulated; signing uses a demo key.", panel: "status" },
 ];
 
 function markDone(i) { $(`#stepn-${i}`)?.closest(".step, .step-static")?.classList.add("done"); }

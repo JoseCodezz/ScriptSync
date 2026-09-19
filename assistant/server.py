@@ -2,7 +2,9 @@
 
     uvicorn assistant.server:app --port 8080 --reload
 """
+import asyncio
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -10,14 +12,26 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from assistant import log as auditlog
+ROOT = Path(__file__).resolve().parent.parent
+
+# Load .env BEFORE anything below reads the environment (common.signing reads its key at import).
+try:
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env")
+except ImportError:  # python-dotenv is in requirements.txt; without it .env is silently ignored
+    print("WARNING: python-dotenv is not installed, so .env was NOT loaded. Run: pip install -r requirements.txt")
+
+from assistant import log as auditlog  # noqa: E402
 from assistant.merge import merge_results
 from assistant.understand import analyze, build_notices, drug_gaps, find_phi
-from assistant.verify import is_agent_verified
+from assistant.verify import describe_verification, is_agent_verified
 from common.signing import SIGNING_MODE, check_freshness, verify_signature
 
-ROOT = Path(__file__).resolve().parent.parent
 AGENT_TIMEOUT = 5.0
+
+# Presenter-only features (impostor tests) exist only when the assistant is started with
+# SCRIPTSYNC_DEMO=1. The product API never exposes them.
+DEMO_MODE = os.environ.get("SCRIPTSYNC_DEMO") == "1"
 
 app = FastAPI(title="ScriptSync HCP Assistant")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -58,7 +72,9 @@ def _blocked(agent, verification, reason, failed_ids, hidden, event):
 
 async def query_agent(agent: dict, question: str) -> dict:
     """Verify first, then ask, then check signature + freshness (Section 7.2)."""
-    v = is_agent_verified(agent["ansName"], agent["endpoint"])
+    # Verification does blocking network work (DNS, a challenge to the agent). Run it in a
+    # worker thread so it cannot freeze the server, and so agents are checked in parallel.
+    v = await asyncio.to_thread(is_agent_verified, agent["ansName"], agent["endpoint"])
     failed = [c for c in v["checks"] if not c["pass"]]
     auditlog.log_event("verify", agent["ansName"], "pass" if v["ok"] else "fail",
                        "all four checks passed" if v["ok"] else "; ".join(c["message"] for c in failed), v)
@@ -111,7 +127,9 @@ class AskRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "scriptsync-assistant", "verification": "simulated", "signing": SIGNING_MODE}
+    detail = describe_verification()
+    return {"ok": True, "service": "scriptsync-assistant", "verification": detail["mode"],
+            "verificationDetail": detail, "signing": SIGNING_MODE, "demo": DEMO_MODE}
 
 
 def reject_phi(text: str) -> None:
@@ -143,16 +161,15 @@ async def ask(req: AskRequest):
                        f"advice-seeking wording: {'yes' if analysis['adviceSeeking'] else 'no'}")
 
     rules = load_rules()
-    results = []
-    for agent in agents:
-        if agent.get("role") == "attacker":
-            continue  # attackers are only triggered via /attack/{type}
+
+    async def handle(agent: dict) -> dict:
         if agent["brand"] not in rules.get("allowedBrands", []):
             auditlog.log_event("skipped", agent["ansName"], "skipped", "brand not allowed by doctor's rules")
-            results.append({**_base(agent), "status": "skipped",
-                            "reason": "Not on the doctor's allowed list."})
-            continue
-        results.append(await query_agent(agent, question))
+            return {**_base(agent), "status": "skipped", "reason": "Not on the doctor's allowed list."}
+        return await query_agent(agent, question)
+
+    # attackers are only triggered via /attack/{type}; every other agent is checked in parallel
+    results = list(await asyncio.gather(*[handle(a) for a in agents if a.get("role") != "attacker"]))
 
     merged = merge_results(question, results)
     merged["gaps"].extend(drug_gaps(analysis))
@@ -166,6 +183,8 @@ DEFAULT_ATTACK_QUESTION = "Is Drug A safe to co-prescribe?"
 
 @app.post("/attack/{attack_type}")
 async def attack(attack_type: str, body: dict = Body(default={})):
+    if not DEMO_MODE:
+        raise HTTPException(403, "Impostor tests are off. Start the assistant with SCRIPTSYNC_DEMO=1 to enable them.")
     agent = next((a for a in load_agents()
                   if a.get("role") == "attacker" and a.get("attack") == attack_type), None)
     if agent is None:
@@ -177,13 +196,26 @@ async def attack(attack_type: str, body: dict = Body(default={})):
     return await query_agent(agent, question)
 
 
+def _visible_agents() -> list[dict]:
+    """Impostors are demo-only and must not appear in the product."""
+    return [a for a in load_agents() if DEMO_MODE or a.get("role") != "attacker"]
+
+
 @app.get("/agents")
-def agents():
-    out = []
-    for a in load_agents():
-        out.append({**_base(a), "role": a.get("role", "brand"), "endpoint": a["endpoint"],
-                    "verification": is_agent_verified(a["ansName"], a["endpoint"])})
-    return out
+async def agents():
+    visible = _visible_agents()
+    verdicts = await asyncio.gather(*[asyncio.to_thread(is_agent_verified, a["ansName"], a["endpoint"]) for a in visible])
+    return [{**_base(a), "role": a.get("role", "brand"), "endpoint": a["endpoint"], "verification": v}
+            for a, v in zip(visible, verdicts)]
+
+
+@app.on_event("startup")
+async def prewarm_verification():
+    """Resolve DNS and challenge every agent now, so the first question is not the one that pays for it."""
+    async def warm():
+        await asyncio.gather(*[asyncio.to_thread(is_agent_verified, a["ansName"], a["endpoint"])
+                               for a in _visible_agents()], return_exceptions=True)
+    asyncio.create_task(warm())
 
 
 @app.get("/rules")
