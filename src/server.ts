@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { registerRouter } from "./routes/register";
+import { registerExternalRouter } from "./routes/registerExternal";
 import { verifyRouter } from "./routes/verifyAgent"; // interactive /agents/challenge + /agents/verify
 import { contractVerifyRouter } from "./routes/verifyContract"; // POST /verify -- the assistant's contract
 import { revokeRouter } from "./routes/revoke";
@@ -14,6 +15,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 // Interactive registration + live challenge/response (real proof-of-
 // possession; not called directly by the assistant, useful for testing).
 app.use("/agents", registerRouter);
+app.use("/agents", registerExternalRouter);
 app.use("/agents", verifyRouter);
 app.use("/agents", revokeRouter);
 
