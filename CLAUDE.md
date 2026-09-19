@@ -47,8 +47,10 @@ Merge to the shared branch often; pull before starting a task; do not change a c
 - Agent response (`POST <endpoint>/answer`): `{agentName, brand, answers:[{section, labelVersion, text, tags, title?}], refused, reason?, timestamp, signature}`.
 - Signing: `common/signing.py` (HMAC-SHA256, demo key `SCRIPTSYNC_DEMO_KEY`). The assistant rejects bad signatures and any message older than 24 hours.
 - Verification: `assistant/verify.py::is_agent_verified(name)` is the ONLY ANS touchpoint. Returns `{name, ok, mode, checks:[{id: dns|cert|log|current, pass, message}], warnings}`. Currently reads `identity_stub` in `config/agents.json`. Plan: call the Node service `POST http://127.0.0.1:8081/verify {"name": ...}` returning the same shape, FAIL CLOSED if it is down (never silently fall back to "verified"); keep an explicitly labeled "simulated" mode.
-- Tag spellings (label authors must use these; gap detection depends on them): CYP3A, interaction, dosing, indication, monitoring, liver, renal, pregnancy, older-adults, pediatric.
-- `/ask` response: `{question, sources[], refused[], blocked[], unreachable[], skipped[], overlaps[], gaps[], disclaimer}`.
+- Tag spellings (label authors must use these; gap detection depends on them): CYP3A, interaction, dosing, indication, monitoring, liver, renal, pregnancy, older-adults, pediatric, switching. (`switching` is NEW: a passage that actually addresses changing from one drug to another. Most labels have none, so a switching question usually ends in "Not covered". Tell whoever writes label JSON.)
+- `/ask` response: `{question, sources[], refused[], blocked[], unreachable[], skipped[], overlaps[], gaps[], notices[], analysis, disclaimer}`. `notices[]` = `{type, message}` (e.g. `advice`: the question sounds like it wants a recommendation, so we warn and reframe but still answer). `analysis` = `{drugsMentioned[], drugsWithoutAgent[], topics[], switching, adviceSeeking}`. `gaps[]` can now include `{topic: "drug: <name>"}` for a drug named in a switching question that has no verified source. The web UI does not render `notices` yet (it ignores unknown fields).
+- Question understanding lives in `assistant/understand.py` (deterministic, no LLM). Drug names are read from each brand agent's `drug` + optional `aliases` in `config/agents.json`.
+- PHI guard: `/ask`, `/attack/*`, `/handoff` return HTTP 400 if the text looks like patient identifiers; nothing is sent to agents; the audit log stores question length + fingerprint only, never the text. `logs/` is gitignored; entries written before this change may still contain test questions.
 - Overlap/gap logic is deterministic (tags), not an LLM: `assistant/merge.py`.
 - `dev/mock_agent.py` + `scripts/start_mocks.ps1` are throwaway stand-ins with placeholder text; delete when the real brand agent lands.
 
@@ -86,6 +88,7 @@ Gotchas:
 ## Current status / open decisions
 - Done: assistant core (verify stub, merge, signing, audit log, four attacks). Now exercised end to end on a real FastAPI install via the web UI and curl with the mocks: a CYP3A question gives two verified answers plus a CYP3A overlap; a kidney question gives "Not covered: renal"; all four attacks are blocked with the right reason (replay is blocked on freshness).
 - Done (first cut): web UI Ask + Answer + impostor attacks (see `frontend` row). Not yet checked in a real browser; only the API calls were tested.
+- Done (`assistant-core`): question understanding (drug recognition from agent config, topics, switching, advice-seeking wording), PHI guard, PHI-safe audit logging, drug-level "Not covered", `switching` topic. Unit-tested (`tests/test_understand.py`) and checked end to end against the mocks.
 - Decided: real drugs with generic names and verbatim label text, our own domain for ANS names (see "Data and naming decisions").
 - Open: confirm the drug pair by reading both real labels (proposal: simvastatin + clarithromycin).
 - Open: buy/confirm the domain we own for ANS names and DNS TXT keys (GoDaddy).

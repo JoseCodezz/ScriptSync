@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from assistant import log as auditlog
 from assistant.merge import merge_results
+from assistant.understand import analyze, build_notices, drug_gaps, find_phi
 from assistant.verify import is_agent_verified
 from common.signing import SIGNING_MODE, check_freshness, verify_signature
 
@@ -113,16 +114,37 @@ def health():
     return {"ok": True, "service": "scriptsync-assistant", "verification": "simulated", "signing": SIGNING_MODE}
 
 
+def reject_phi(text: str) -> None:
+    """Hard rule: no patient data. Refuse before anything is logged or sent to an agent.
+    Only the kinds of identifier found are logged, never the text."""
+    flags = find_phi(text)
+    if flags:
+        auditlog.log_event("phi_blocked", "doctor", "blocked", "possible patient identifiers: " + ", ".join(flags))
+        raise HTTPException(status_code=400, detail=(
+            "This looks like it contains patient identifiers (" + ", ".join(flags) + "). "
+            "ScriptSync does not accept patient information. Remove it and ask again."))
+
+
 @app.post("/ask")
 async def ask(req: AskRequest):
     question = req.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Please type a question.")
-    auditlog.log_event("ask", "doctor", "received", question[:80], question)
+    reject_phi(question)
+    agents = load_agents()
+    analysis = analyze(question, agents)
+    # The question text itself is never stored (it could hold something sensitive):
+    # only its length and a short fingerprint.
+    auditlog.log_event("ask", "doctor", "received", f"question received ({len(question)} characters; text not stored)", question)
+    auditlog.log_event("analyze", "assistant", "ok",
+                       f"drugs recognized: {len(analysis['drugsMentioned'])}, "
+                       f"drugs without a source: {len(analysis['drugsWithoutAgent'])}, "
+                       f"topics: {', '.join(analysis['topics']) or 'none'}, "
+                       f"advice-seeking wording: {'yes' if analysis['adviceSeeking'] else 'no'}")
 
     rules = load_rules()
     results = []
-    for agent in load_agents():
+    for agent in agents:
         if agent.get("role") == "attacker":
             continue  # attackers are only triggered via /attack/{type}
         if agent["brand"] not in rules.get("allowedBrands", []):
@@ -131,7 +153,12 @@ async def ask(req: AskRequest):
                             "reason": "Not on the doctor's allowed list."})
             continue
         results.append(await query_agent(agent, question))
-    return merge_results(question, results)
+
+    merged = merge_results(question, results)
+    merged["gaps"].extend(drug_gaps(analysis))
+    merged["analysis"] = analysis
+    merged["notices"] = build_notices(analysis)
+    return merged
 
 
 DEFAULT_ATTACK_QUESTION = "Is Drug A safe to co-prescribe?"
@@ -145,6 +172,7 @@ async def attack(attack_type: str, body: dict = Body(default={})):
         raise HTTPException(404, f"No attack '{attack_type}'. Options: "
                             + ", ".join(a["attack"] for a in load_agents() if a.get("role") == "attacker"))
     question = (body.get("question") or DEFAULT_ATTACK_QUESTION).strip()
+    reject_phi(question)
     auditlog.log_event("attack", agent["ansName"], "started", attack_type)
     return await query_agent(agent, question)
 
@@ -185,7 +213,8 @@ class HandoffRequest(BaseModel):
 @app.post("/handoff")
 def handoff(req: HandoffRequest):
     """Draft only. Sending is display-only in this build."""
-    who = ", ".join(req.brands) or "the manufacturers"
+    reject_phi(req.question)
+    who =", ".join(req.brands) or "the manufacturers"
     what = ", ".join(req.topics) or "the topic in question"
     draft = (f"To the medical information team(s) at {who}:\n\n"
              f"A clinician asked: \"{req.question}\"\n"
