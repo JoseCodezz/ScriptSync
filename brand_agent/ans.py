@@ -213,24 +213,109 @@ def check_dns_anchor(ans_name: ANSName, public_key_b64: str) -> tuple[bool | Non
     if ans_name.domain.endswith(".example") or ans_name.domain == "example":
         return None, f"{ans_name.domain} is a placeholder; no domain registered yet"
 
-    try:
-        import dns.resolver
-    except ImportError:
-        return None, "dnspython not installed"
+    values, how = resolve_txt(ans_name.txt_record)
+    if values is None:
+        # Could not ask the question at all (port 53 blocked, no network). That
+        # is unknown, not a failure of the agent's identity - and emphatically
+        # not a pass.
+        return None, f"TXT lookup for {ans_name.txt_record} unavailable: {how}"
 
-    try:
-        answers = dns.resolver.resolve(ans_name.txt_record, "TXT")
-    except Exception as exc:  # noqa: BLE001 - any DNS failure is a failed check
-        return False, f"TXT lookup for {ans_name.txt_record} failed: {exc}"
-
-    for record in answers:
-        value = b"".join(record.strings).decode("utf-8", errors="replace")
+    for value in values:
         published = parse_public_key_from_txt(value)
         if published == public_key_b64:
-            return True, f"Public key published at {ans_name.txt_record}"
+            return True, f"Public key published at {ans_name.txt_record} (via {how})"
         if published:
             return False, (
                 f"TXT record at {ans_name.txt_record} publishes a DIFFERENT key "
                 "than this agent holds"
             )
-    return False, f"No v=agentkey1 TXT record found at {ans_name.txt_record}"
+    return False, f"No v=agentkey1 TXT record found at {ans_name.txt_record} (via {how})"
+
+
+DNS_TIMEOUT_SECONDS = 3.0
+
+
+def _resolve_txt_port53(hostname: str) -> list[str] | None:
+    try:
+        import dns.resolver
+    except ImportError:
+        return None
+    resolver = dns.resolver.Resolver()
+    # Without these, a network that silently drops port 53 hangs the caller for
+    # the resolver default (~5s per server, retried) instead of failing fast.
+    resolver.timeout = DNS_TIMEOUT_SECONDS
+    resolver.lifetime = DNS_TIMEOUT_SECONDS
+    try:
+        answers = resolver.resolve(hostname, "TXT")
+    except Exception:  # noqa: BLE001 - NXDOMAIN and timeout are handled by the caller
+        return None
+    return [b"".join(r.strings).decode("utf-8", errors="replace") for r in answers]
+
+
+def _resolve_txt_doh(hostname: str) -> tuple[list[str] | None, str | None]:
+    """Resolve over DNS-over-HTTPS. Returns (values, diagnosis).
+
+    Guest and conference networks routinely block outbound port 53 while leaving
+    443 open - ordinary DNS then times out and looks exactly like a missing
+    record. DoH goes over HTTPS, so it still works there.
+
+    DNSSEC validation is deliberately left ON. A resolver that SERVFAILs a
+    broken chain of trust is doing its job; re-querying with cd=1 to "make it
+    work" would turn a real security failure into a silent pass, which is the
+    opposite of what this system is for.
+    """
+    import httpx
+
+    diagnosis = None
+    for url in ("https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"):
+        try:
+            response = httpx.get(
+                url,
+                params={"name": hostname, "type": "TXT"},
+                headers={"accept": "application/dns-json"},
+                timeout=DNS_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            body = response.json()
+        except Exception:  # noqa: BLE001 - try the next provider
+            continue
+
+        if body.get("Status") == 2:  # SERVFAIL
+            comment = " ".join(
+                body.get("Comment", [])
+                if isinstance(body.get("Comment"), list)
+                else [str(body.get("Comment") or "")]
+            )
+            errors = " ".join(
+                str(e.get("extra_text", "")) for e in body.get("extended_dns_errors", [])
+            )
+            if "DNSSEC" in comment or "DNSKEY" in comment or "DS " in comment or errors:
+                diagnosis = (
+                    "SERVFAIL from DNSSEC validation - the registry publishes a DS "
+                    "record but the zone serves no matching DNSKEY. Every validating "
+                    "resolver will refuse this entire domain until the DS is removed "
+                    "or the zone is properly signed."
+                )
+            else:
+                diagnosis = "SERVFAIL from the resolver"
+            continue
+
+        values = [a["data"].strip('"') for a in body.get("Answer") or [] if a.get("type") == 16]
+        if values:
+            return values, None
+    return None, diagnosis
+
+
+def resolve_txt(hostname: str) -> tuple[list[str] | None, str]:
+    """Resolve TXT records, falling back to DoH. Returns (values, how).
+
+    `values is None` means the lookup could not be performed - distinct from an
+    empty list, which means the name resolved but published no TXT record.
+    """
+    values = _resolve_txt_port53(hostname)
+    if values is not None:
+        return values, "port-53"
+    values, diagnosis = _resolve_txt_doh(hostname)
+    if values is not None:
+        return values, "DoH"
+    return None, diagnosis or "port 53 blocked or unreachable, and DoH failed"

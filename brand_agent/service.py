@@ -11,7 +11,9 @@ Replaces dev/mock_agent.py.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -52,9 +54,27 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
 
     app = FastAPI(title=agent_meta["displayName"], version=version)
 
+    # /identity is on the hot path for every verification. Resolving on each
+    # call would re-pay the DNS cost, and - when DNS is slow or blocked - stall
+    # the endpoint. Cache the verdict briefly and do the blocking lookup in a
+    # worker thread so it can never block the event loop.
+    _anchor_cache: dict[str, tuple[float, bool | None, str]] = {}
+    ANCHOR_TTL_SECONDS = 60.0
+
+    async def anchor_status() -> tuple[bool | None, str]:
+        cached = _anchor_cache.get("v")
+        now = time.monotonic()
+        if cached and now - cached[0] < ANCHOR_TTL_SECONDS:
+            return cached[1], cached[2]
+        anchored, detail = await asyncio.to_thread(
+            check_dns_anchor, ans_name, identity.public_key_b64
+        )
+        _anchor_cache["v"] = (now, anchored, detail)
+        return anchored, detail
+
     @app.get("/identity")
     async def get_identity() -> dict:
-        anchored, detail = check_dns_anchor(ans_name, identity.public_key_b64)
+        anchored, detail = await anchor_status()
         return {
             # The assistant reads only agentName; the rest is for ANS verification.
             "agentName": ans_name.full,
