@@ -1,0 +1,7 @@
+{
+  "allowedBrands": ["Brand A", "Brand B"],
+  "holdRoutineDuringClinicHours": true,
+  "clinicHours": ["08:00", "17:00"],
+  "verifiedOnly": true,
+  "urgentSafetyAlwaysDelivered": true
+}
