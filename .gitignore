@@ -1,9 +1,8 @@
+node_modules/
+dist/
 .venv/
 __pycache__/
 *.pyc
 .env
 logs/
-
-# brand agent signing keys - never commit
 keys/
-.venv/
