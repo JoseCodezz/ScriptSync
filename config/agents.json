@@ -1,0 +1,51 @@
+{
+  "_comment": "Discovery config (F2). Add a brand = add an entry; no code change. role=attacker entries are only reached through POST /attack/{attack}. identity_stub is read ONLY by assistant/verify.py while ANS is simulated; missing checks default to pass.",
+  "agents": [
+    {
+      "id": "agent-a", "role": "brand", "brand": "Brand A", "drug": "Drug A",
+      "ansName": "a2a://labelAgent.drugInfo.BrandA.v1.0.0.brand-a.example",
+      "endpoint": "http://127.0.0.1:9001"
+    },
+    {
+      "id": "agent-b", "role": "brand", "brand": "Brand B", "drug": "Drug B",
+      "ansName": "a2a://labelAgent.drugInfo.BrandB.v1.0.0.brand-b.example",
+      "endpoint": "http://127.0.0.1:9002"
+    },
+    {
+      "id": "attack-lookalike", "role": "attacker", "attack": "lookalike",
+      "brand": "Brand A", "drug": "Drug A",
+      "ansName": "a2a://labelAgent.drugInfo.BrandA.v1.0.0.brand-a5.example",
+      "endpoint": "http://127.0.0.1:9101",
+      "identity_stub": {
+        "dns": {"pass": false, "message": "No domain record: brand-a5.example was never registered"},
+        "cert": {"pass": false, "message": "No certificate issued for this name"},
+        "log": {"pass": false, "message": "Not in the public registration log"}
+      },
+      "warnings": ["Lookalike domain: one character away from brand-a.example"]
+    },
+    {
+      "id": "attack-expired", "role": "attacker", "attack": "expired",
+      "brand": "Brand A", "drug": "Drug A",
+      "ansName": "a2a://labelAgent.drugInfo.BrandA.v1.1.0.brand-a.example",
+      "endpoint": "http://127.0.0.1:9102",
+      "identity_stub": {
+        "cert": {"pass": false, "message": "Certificate expired 41 days ago"}
+      }
+    },
+    {
+      "id": "attack-replay", "role": "attacker", "attack": "replay",
+      "brand": "Brand A", "drug": "Drug A",
+      "ansName": "a2a://labelAgent.drugInfo.BrandA.v1.0.0.brand-a.example",
+      "endpoint": "http://127.0.0.1:9103"
+    },
+    {
+      "id": "attack-revoked", "role": "attacker", "attack": "revoked",
+      "brand": "Brand A", "drug": "Drug A",
+      "ansName": "a2a://labelAgent.drugInfo.BrandA.v0.9.0.brand-a.example",
+      "endpoint": "http://127.0.0.1:9104",
+      "identity_stub": {
+        "current": {"pass": false, "message": "Version 0.9.0 was revoked; 1.0.0 is current"}
+      }
+    }
+  ]
+}
