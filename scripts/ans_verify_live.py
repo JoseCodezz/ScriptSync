@@ -52,6 +52,20 @@ def lookup_key_via_dns(
     import dns.resolver
 
     hostname = f"_agentid.{agent}.{domain}"
+    if nameserver is None:
+        # Shared path with the agent: port 53, then DoH, then (only on explicit
+        # opt-in) DoH without DNSSEC validation.
+        from brand_agent.ans import resolve_txt
+
+        values, how = resolve_txt(hostname)
+        if values is None:
+            return None, f"{hostname}: {how}"
+        for value in values:
+            key = parse_public_key_from_txt(value)
+            if key:
+                return key, f"{hostname} via {how}"
+        return None, f"{hostname}: no v=agentkey1 record"
+
     resolver = dns.resolver.Resolver()
     if nameserver:
         import socket
@@ -133,8 +147,14 @@ def main() -> int:
 
         # 4. Verify.
         payload = signing_payload(args.domain, agent, challenge, issued_at)
+        unvalidated = "UNVALIDATED" in where
         if verify_payload(payload, proof["signature"], dns_key):
-            print(f"  VERIFIED           {proof['agentName']}")
+            label = "VERIFIED*" if unvalidated else "VERIFIED "
+            print(f"  {label}          {proof['agentName']}")
+            if unvalidated:
+                print("  * DNSSEC validation was bypassed - the zone's chain of trust is")
+                print("    broken (orphaned DS record). The key came from the real DNS")
+                print("    record, but a validating resolver would refuse this domain.")
         else:
             print("  SIGNATURE INVALID  key does not match the signature")
             failures += 1

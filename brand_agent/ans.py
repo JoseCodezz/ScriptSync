@@ -252,7 +252,9 @@ def _resolve_txt_port53(hostname: str) -> list[str] | None:
     return [b"".join(r.strings).decode("utf-8", errors="replace") for r in answers]
 
 
-def _resolve_txt_doh(hostname: str) -> tuple[list[str] | None, str | None]:
+def _resolve_txt_doh(
+    hostname: str, allow_unvalidated: bool = False
+) -> tuple[list[str] | None, str | None]:
     """Resolve over DNS-over-HTTPS. Returns (values, diagnosis).
 
     Guest and conference networks routinely block outbound port 53 while leaving
@@ -271,7 +273,13 @@ def _resolve_txt_doh(hostname: str) -> tuple[list[str] | None, str | None]:
         try:
             response = httpx.get(
                 url,
-                params={"name": hostname, "type": "TXT"},
+                params={
+                    "name": hostname,
+                    "type": "TXT",
+                    # cd=1 disables DNSSEC validation. Off by default and only
+                    # ever set by an explicit operator opt-in; see resolve_txt.
+                    **({"cd": "1"} if allow_unvalidated else {}),
+                },
                 headers={"accept": "application/dns-json"},
                 timeout=DNS_TIMEOUT_SECONDS,
             )
@@ -311,11 +319,24 @@ def resolve_txt(hostname: str) -> tuple[list[str] | None, str]:
 
     `values is None` means the lookup could not be performed - distinct from an
     empty list, which means the name resolved but published no TXT record.
+
+    Setting ANS_ALLOW_UNVALIDATED_DNS=1 retries over DoH with DNSSEC validation
+    disabled. It exists for one situation: a zone whose chain of trust is broken
+    by a misconfiguration (an orphaned DS record), where the TXT data itself is
+    correct and reachable. It is off by default, never silent - `how` says
+    "DoH (UNVALIDATED)" so every caller and log line carries the caveat.
     """
     values = _resolve_txt_port53(hostname)
     if values is not None:
         return values, "port-53"
+
     values, diagnosis = _resolve_txt_doh(hostname)
     if values is not None:
         return values, "DoH"
+
+    if os.environ.get("ANS_ALLOW_UNVALIDATED_DNS") == "1":
+        values, _ = _resolve_txt_doh(hostname, allow_unvalidated=True)
+        if values is not None:
+            return values, "DoH (UNVALIDATED - DNSSEC check bypassed)"
+
     return None, diagnosis or "port 53 blocked or unreachable, and DoH failed"
