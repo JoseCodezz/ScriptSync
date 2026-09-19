@@ -1,0 +1,128 @@
+{
+  "_meta": {
+    "source": "openFDA / DailyMed Structured Product Label",
+    "spl_id": "4bbbb5c9-6c29-bc3b-e063-6294a90a6cce",
+    "effective_time": "20260226",
+    "retrieved": "2026-09-19",
+    "verbatim": true,
+    "note": "Demo agent serving the public DailyMed label for simvastatin. Not operated by any manufacturer. Passages are verbatim slices of the source SPL; section numbers and titles are read from the label text; char_start/char_end index into the named openFDA field."
+  },
+  "agent": {
+    "drug": "simvastatin",
+    "brand": "Simvastatin",
+    "displayName": "Simvastatin label agent",
+    "subtitle": "demo agent serving the public DailyMed label, not operated by the manufacturer"
+  },
+  "labelVersion": "SPL 20260226",
+  "sections": [
+    {
+      "section": "4",
+      "title": "Contraindications",
+      "tags": [
+        "CYP3A",
+        "interaction"
+      ],
+      "text": "4 CONTRAINDICATIONS Simvastatin is contraindicated in the following conditions: Concomitant use of strong CYP3A4 inhibitors (select azole anti-fungals, macrolide antibiotics, anti-viral medications, and nefazodone) [see DRUG INTERACTIONS ( 7.1 )]. Concomitant use of cyclosporine, danazol or gemfibrozil [see DRUG INTERACTIONS ( 7.1 )]. Acute liver failure or decompensated cirrhosis [see WARNINGS AND PRECAUTIONS ( 5.3 )] Hypersensitivity to simvastatin or any excipients in simvastatin tablets USP. Hypersensitivity reactions, including anaphylaxis, angioedema and Stevens-Johnson syndrome, have been reported [see ADVERSE REACTIONS ( 6.2 )] Concomitant use of strong CYP3A4 inhibitors (select azole anti-fungals, macrolide antibiotics, anti-viral medications, and nefazodone) ( 4 , 7.1 ) Concomitant use of cyclosporine, danazol or gemfibrozil ( 4 , 7.1 ) Acute liver failure or decompensated cirrhosis ( 4 , 5.3 ) Hypersensitivity to simvastatin or any excipient in simvastatin tablets USP ( 4 , 6.2 )",
+      "source": {
+        "field": "contraindications",
+        "char_start": 0,
+        "char_end": 1005,
+        "truncated": false,
+        "header_preview": "4 CONTRAINDICATIONS Simvastatin is contraindicated in the following conditions: Concomitant use of strong CYP3"
+      }
+    },
+    {
+      "section": "7.1",
+      "title": "Drug Interactions that Increase the Risk of Myopathy and Rhabdomyolysis with Simvastatin",
+      "tags": [
+        "CYP3A",
+        "interaction",
+        "monitoring"
+      ],
+      "text": "Strong CYP3A4 inhibitors Clinical Impact: Simvastatin is a substrate of CYP3A4. Concomitant use of strong CYP3A4 inhibitors with simvastatin increases simvastatin exposure and increases the risk of myopathy and rhabdomyolysis, particularly with higher simvastatin dosages. Intervention: Concomitant use of strong CYP3A4 inhibitors with Simvastatin is contraindicated [see CONTRAINDICATIONS ( 4 )] . If treatment with a CYP3A4 inhibitor is unavoidable, suspend simvastatin during the course of strong CYP3A4 inhibitor treatment. Examples: Select azole anti-fungals (e.g., itraconazole, ketoconazole, posaconazole, and voriconazole), select macrolide antibiotics (e.g., erythromycin and clarithromycin), select HIV protease inhibitors (e.g., nelfinavir, ritonavir, and darunavir/ritonavir), select HCV protease inhibitors (e.g., boceprevir and telaprevir), cobicistat-containing products, and nefazodone. Cyclosporine, Danazol, or Gemfibrozil Clinical Impact: The risk of myopathy and rhabdomyolysis is increased with concomitant use of cyclosporine, danazol, or gemfibrozil with simvastatin. Gemfibrozil may cause myopathy when given alone. Intervention: Concomitant use of cyclosporine, danazol, or gemfibrozil with simvastatin is contraindicated [see CONTRAINDICATIONS ( 4 )] .",
+      "source": {
+        "field": "drug_interactions",
+        "char_start": 1066,
+        "char_end": 2344,
+        "truncated": true,
+        "header_preview": "7.1 Drug Interactions that Increase the Risk of Myopathy and Rhabdomyolysis with Simvastatin Simvastatin is a"
+      }
+    },
+    {
+      "section": "2.1",
+      "title": "Important Dosage and Administration Information",
+      "tags": [
+        "dosing"
+      ],
+      "text": "2.1 Important Dosage and Administration Information Take simvastatin tablets USP orally once daily in the evening. The maximum recommended dosage is simvastatin tablets USP 40 mg once daily [see DOSAGE AND ADMINISTRATION ( 2.2 , 2.3 )]. An 80 mg daily dosage of simvastatin tablets USP is restricted to patients who have been taking simvastatin tablets USP 80 mg daily chronically (e.g., for 12 months or more) without evidence of muscle toxicity [see WARNINGS AND PRECAUTIONS ( 5.1 )]. If as dose is missed, take the missed dose as soon as possible. Do not double the next dose. For patients that require a high-intensity statin or are unable to achieve their LDL-C goal receiving simvastatin tablets USP 40 mg daily, prescribe alternative LDL-C-lowering treatment. Assess LDL-C when clinically appropriate, as early as 4 weeks after initiating simvastatin tablets USP, and adjust the dosage if necessary.",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 1141,
+        "char_end": 2048,
+        "truncated": false,
+        "header_preview": "2.1 Important Dosage and Administration Information Take simvastatin tablets USP orally once daily in the even"
+      }
+    },
+    {
+      "section": "2.2",
+      "title": "Recommended Dosage in Adult Patients",
+      "tags": [
+        "dosing"
+      ],
+      "text": "2.2 Recommended Dosage in Adult Patients The recommended dosage range of simvastatin tablets USP is 20 mg to 40 mg once daily",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 2048,
+        "char_end": 2174,
+        "truncated": false,
+        "header_preview": "2.2 Recommended Dosage in Adult Patients The recommended dosage range of simvastatin tablets USP is 20 mg to 4"
+      }
+    },
+    {
+      "section": "2.5",
+      "title": "Dosage Modifications Due to Drug Interactions",
+      "tags": [
+        "dosing",
+        "interaction"
+      ],
+      "text": "2.5 Dosage Modifications Due to Drug Interactions Concomitant use of simvastatin tablets USP with the following drugs requires dosage modification of simvastatin tablets USP [see WARNINGS AND PRECAUTIONS ( 5.1 ) AND DRUG INTERACTIONS ( 7.1 )]. Patients taking Lomitapide Reduce the dosage of simvastatin tablets USP by 50%. Do not exceed simvastatin tablets USP 20 mg once daily (or 40 mg once daily for patients who have previously taken an 80 mg daily dosage of simvastatin tablets USP chronically while taking lomitapide) [see DOSAGE AND ADMINISTRATION (2.1)]. Patients taking Verapamil, Diltiazem, or Dronedarone Do not exceed simvastatin tablets USP 10 mg once daily. Patients taking Amiodarone, Amlodipine, or Ranolazine Do not exceed simvastatin tablets USP 20 mg once daily.",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 2836,
+        "char_end": 3618,
+        "truncated": false,
+        "header_preview": "2.5 Dosage Modifications Due to Drug Interactions Concomitant use of simvastatin tablets USP with the followin"
+      }
+    },
+    {
+      "section": "1",
+      "title": "Indications and Usage",
+      "tags": [
+        "indication"
+      ],
+      "text": "1 INDICATIONS AND USAGE Simvastatin tablets USP are indicated: To reduce the risk of total mortality by reducing risk of coronary heart disease death, non-fatal myocardial infarction and stroke, and the need for coronary and non-coronary revascularization procedures in adults with established coronary heart disease, cerebrovascular disease, peripheral vascular disease, and/or diabetes, who are at high risk of coronary heart disease events. As an adjunct to diet to reduce low-density lipoprotein cholesterol (LDL-C): In adults with primary hyperlipidemia. In adults and pediatric patients aged 10 years and older with heterozygous familial hypercholesterolemia (HeFH). As an adjunct to other LDL-C-lowering therapies to reduce LDL-C in adults with homozygous familial hypercholesterolemia (HoFH). As an adjunct to diet for the treatment of adults with: Primary dysbetalipoproteinemia. Hypertriglyceridemia. Simvastatin tablets USP are an HMG-CoA reductase inhibitor indicated: To reduce the risk of total mortality by reducing risk of coronary heart disease death, non-fatal myocardial infarction and stroke, and the need for coronary and non-coronary revascularization procedures in adults with established coronary heart disease, cerebrovascular disease, peripheral vascular disease, and/or diabetes, who are at high risk of coronary heart disease events. As an adjunct to diet to reduce low-density lipoprotein cholesterol (LDL-C): In adults with primary hyperlipidemia.",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 0,
+        "char_end": 1477,
+        "truncated": true,
+        "header_preview": "1 INDICATIONS AND USAGE Simvastatin tablets USP are indicated: To reduce the risk of total mortality by reduci"
+      }
+    },
+    {
+      "section": "8.5",
+      "title": "Geriatric Use",
+      "tags": [
+        "older-adults"
+      ],
+      "text": "8.5 Geriatric Use Of the total number of simvastatin-treated patients in clinical studies 1,021 (23%) patients, 5,366 (52%) patients, and 363 (15%) patients were \u226565 years old, respectively. In Study HPS, 615 (6%) patients were \u226575 years old [see CLINICAL STUDIES ( 14 )] . In a clinical study of patients treated with simvastatin 80 mg daily, patients \u226565 years of age had an increased risk of myopathy, including rhabdomyolysis, compared to patients <65 years of age. A pharmacokinetic study with simvastatin use showed the mean plasma level of total inhibitors to be approximately 45% higher in geriatric patients between 70-78 years of age compared with patients between 18-30 years of age [see CLINICAL PHARMACOLOGY ( 12.3 )] .",
+      "source": {
+        "field": "geriatric_use",
+        "char_start": 0,
+        "char_end": 732,
+        "truncated": false,
+        "header_preview": "8.5 Geriatric Use Of the total number of simvastatin-treated patients in clinical studies 1,021 (23%) patients"
+      }
+    }
+  ]
+}
