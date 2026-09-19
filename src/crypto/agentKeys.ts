@@ -1,4 +1,6 @@
-import { generateKeyPairSync, KeyObject } from "crypto";
+import { 
+  generateKeyPairSync, 
+  KeyObject, } from "crypto";
 
 export interface Ed25519KeyPair {
   publicKey: KeyObject;
