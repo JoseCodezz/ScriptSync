@@ -24,7 +24,7 @@ const SUGGESTIONS = ["Can simvastatin be taken with clarithromycin?", "What do I
 const DEFAULT_Q = SUGGESTIONS[0];
 
 let journalLimit = 40;   // newest events shown first; "Show older events" adds 40 more
-const state = { online: false, health: null, agents: [], rules: null, log: [], busy: false, lastQuestion: null, sawAnswers: false, sawPlaceholder: false, msgs: new WeakMap() };
+const state = { online: false, health: null, agents: [], rules: null, log: [], busy: false, seq: 0, lastQuestion: null, sawAnswers: false, sawPlaceholder: false, msgs: new WeakMap() };
 
 // ---------- API ----------
 async function api(path, options) {
@@ -128,19 +128,59 @@ function resultCard(kind, r) {
   return `<div class="card"><h4>${esc(r.brand)} label agent</h4>${rows}<div class="st" data-chip="${esc(chip)}"></div>${why}</div>`;
 }
 
-function passageCard(a) {
-  const meta = [`<b>Section ${esc(a.section)}</b>`, a.title && esc(a.title), a.labelVersion && esc(a.labelVersion), a.labelDate && esc(a.labelDate)].filter(Boolean).join(" · ");
-  const cut = a.source?.truncated ? '<span class="chip">excerpt (cut short)</span>' : "";
-  const long = String(a.text || "").length > 450;   // long passages start folded, with a visible toggle
-  return `<div class="card"><div class="passage-meta">${meta}</div><blockquote${long ? ' class="clamp"' : ""}>${esc(a.text)}</blockquote>${long ? '<button type="button" class="more">Show full passage</button><br>' : ""}${(a.tags || []).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}${cut}</div>`;
+// Display-only formatting of a verbatim quote. It wraps the label's own headings in <span class="lh">
+// (bold, on their own line) and never adds, removes or reorders a character of the text.
+const LABEL_HEADS = /\b(Clinical Impact|Intervention|Examples):/g;
+function quoteHtml(a) {
+  const t = String(a.text ?? "");
+  const marks = [];
+  const lead = a.section && a.title ? `${a.section} ${a.title}` : "";
+  if (lead && t.startsWith(lead)) marks.push([0, lead.length]);
+  else { const i = t.indexOf("Clinical Impact:"); if (i > 0 && i < 80) marks.push([0, i]); }
+  for (const m of t.matchAll(LABEL_HEADS)) if (!marks.length || m.index >= marks[marks.length - 1][1]) marks.push([m.index, m.index + m[0].length]);
+  let out = "", pos = 0;
+  for (const [st, en] of marks) { out += esc(t.slice(pos, st)) + `<span class="lh">${esc(t.slice(st, en))}</span>`; pos = en; }
+  return out + esc(t.slice(pos));
 }
 
-function sourceColumn(s) {
+const shortTitle = (t) => { t = String(t || ""); return t.length > 34 ? t.slice(0, 33) + "…" : t; };
+
+function passageCard(a, id) {
+  const cut = a.source?.truncated ? '<span class="chip">excerpt (cut short)</span>' : "";
+  const long = String(a.text || "").length > 320;   // long passages start folded, with a visible toggle
+  const where = [a.labelVersion, a.labelDate, a.source?.field && `openFDA · ${a.source.field}`].filter(Boolean).map(esc).join(" · ");
+  return `<div class="card" id="${esc(id)}"><div class="ptitle"><span class="sec">§${esc(a.section)}</span>${esc(a.title || "")}</div>
+    <blockquote${long ? ' class="clamp"' : ""}>${quoteHtml(a)}</blockquote>${long ? '<button type="button" class="more">Show full passage</button><br>' : ""}
+    ${(a.tags || []).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}${cut}<div class="passage-meta">${where}</div></div>`;
+}
+
+function sourceColumn(s, seq, asked) {
+  const ids = (s.answers || []).map((_, i) => `m${seq}-${s.agent}-${i}`);
+  const glance = (s.answers || []).length > 1
+    ? `<div class="glance">At a glance ${s.answers.map((a, i) => `<button type="button" data-jump="${esc(ids[i])}">§${esc(a.section)} ${esc(shortTitle(a.title))}</button>`).join("")}</div>` : "";
   return `<div class="src"><div class="srchead"><h4>${esc(s.brand)} label agent</h4>
-    <span class="chip ok">✓ Verified (${esc(s.verification?.mode || "simulated")})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>
-    <div class="mono">${esc(s.ansName)} · signed ${esc(s.timestamp || "?")}</div>
+    <span class="chip ok">✓ Verified (${esc(s.verification?.mode || "simulated")})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>${asked ? '<span class="chip v">Asked about</span>' : ""}
+    <div class="mono">${esc(s.ansName)} · signed ${esc(s.timestamp || "?")}</div>${glance}
     <details class="how"><summary>Identity checks</summary><ul class="ck">${checkRows(s.verification)}</ul></details></div>
-    ${(s.answers || []).map(passageCard).join("")}</div>`;
+    ${(s.answers || []).map((a, i) => passageCard(a, ids[i])).join("")}</div>`;
+}
+
+// Sources for a drug the doctor named come first. A source for a different drug that only
+// answered because its label mentions the named drug is shown, but folded away.
+function sourceSections(d, seq) {
+  const named = d.analysis?.drugsMentioned || [];
+  const askedAgents = new Set(named.map((x) => x.agent));
+  const primary = named.length ? d.sources.filter((s) => askedAgents.has(s.agent)) : d.sources;
+  const secondary = named.length && primary.length ? d.sources.filter((s) => !askedAgents.has(s.agent)) : [];
+  let html = `<div class="srcs">${primary.map((s) => sourceColumn(s, seq, named.length > 0)).join("")}</div>`;
+  if (secondary.length) {
+    const names = named.map((x) => x.drug);
+    const mentions = names.filter((n) => secondary.some((s) => (s.answers || []).some((a) => String(a.text || "").toLowerCase().includes(String(n).toLowerCase()))));
+    const count = secondary.reduce((n, s) => n + (s.answers || []).length, 0);
+    html += `<details class="secondary"><summary>${mentions.length ? `Also mentions ${esc(mentions.join(", "))}` : "Other sources that answered"} · ${secondary.map((s) => esc(s.brand) + " label agent").join(", ")} (${count} passage${count === 1 ? "" : "s"})</summary>
+      <div class="srcs">${secondary.map((s) => sourceColumn(s, seq, false)).join("")}</div></details>`;
+  }
+  return html;
 }
 
 function readLine(an) {
@@ -162,10 +202,11 @@ function answerHtml(d) {
     d.unreachable.length ? `<span class="chip bad">${d.unreachable.length} unreachable</span>` : "",
     `<span class="chip v">verification ${esc(mode)}</span>`,
   ].join("");
-  return `<div class="strip">${strip}</div>`
+  const seq = ++state.seq;
+  return `<div class="asked">You asked: “${esc(d.question)}”</div><div class="strip">${strip}</div>`
     + (d.notices || []).map((n) => `<div class="note adv">${esc(n.message)}</div>`).join("")
     + readLine(d.analysis)
-    + (d.sources.length ? `<div class="srcs">${d.sources.map(sourceColumn).join("")}</div>`
+    + (d.sources.length ? sourceSections(d, seq)
       : (d.gaps.length || d.blocked.length ? "" : '<div class="note gap">No verified source had a passage for this question, so nothing is shown. ScriptSync does not guess.</div>'))
     + d.overlaps.map((o) => `<div class="note ov"><b>Possible overlap · ${esc(o.tag)}</b><br>${esc(o.note)}<div>${o.statements.map((s) => `<span class="chip v">${esc(s.source)} · §${esc(s.section)}</span>`).join("")}</div></div>`).join("")
     + d.gaps.map((g) => `<div class="note gap">${esc(g.message)}${String(g.topic).startsWith("drug:") ? "" : `<button type="button" data-t="${esc(g.topic)}">Draft handoff note</button><div class="draft"></div>`}</div>`).join("")
@@ -256,6 +297,19 @@ $("#newChat").onclick = newChat;
 thread.addEventListener("click", async (e) => {
   const sug = e.target.closest("#ex button[data-q]");
   if (sug) { ask(sug.dataset.q); return; }
+
+  const jump = e.target.closest("[data-jump]");
+  if (jump) {
+    const el = document.getElementById(jump.dataset.jump);
+    if (el) {
+      const det = el.closest("details.secondary");
+      if (det) det.open = true;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.classList.add("flash");
+      setTimeout(() => el.classList.remove("flash"), 1400);
+    }
+    return;
+  }
 
   const more = e.target.closest(".more");
   if (more) {
