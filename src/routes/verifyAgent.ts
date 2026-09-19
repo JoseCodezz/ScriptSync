@@ -89,9 +89,17 @@ verifyRouter.post("/verify", async (req: Request, res: Response) => {
     return res.status(400).json({ verified: false, reason: "issuedAt does not match issued challenge" });
   }
 
+  // Single-use regardless of outcome (including a DNS lookup that fails or
+  // finds nothing), so neither a leaked signature nor a DNS hiccup gives an
+  // attacker unlimited attempts against the same challenge round.
+  markChallengeUsed(challenge);
+
   let publicKeyBase64: string | null;
+  let dnsHow: string;
   try {
-    publicKeyBase64 = await lookupAgentPublicKeyViaDns(domain, agent);
+    const result = await lookupAgentPublicKeyViaDns(domain, agent);
+    publicKeyBase64 = result.key;
+    dnsHow = result.how;
   } catch (err: any) {
     return res.status(502).json({ verified: false, reason: "DNS lookup failed", detail: err.message });
   }
@@ -99,15 +107,12 @@ verifyRouter.post("/verify", async (req: Request, res: Response) => {
   if (!publicKeyBase64) {
     return res.status(404).json({
       verified: false,
-      reason: `No agent-identity TXT record found for ${agent} on ${domain}`,
+      reason: `No agent-identity TXT record found for ${agent} on ${domain} (${dnsHow})`,
     });
   }
 
   const payload = buildSigningPayload({ domain, agent, challenge, issuedAt });
   const validSignature = verifySignature(payload, signature, publicKeyBase64);
-
-  // Single-use regardless of outcome, so a leaked signature can't be retried.
-  markChallengeUsed(challenge);
 
   if (!validSignature) {
     return res.status(401).json({ verified: false, reason: "signature verification failed" });

@@ -1,8 +1,10 @@
+import { loadJson, saveJson } from "./persist";
+
 // Parameters for Agent Records, EXTREMELEY IMPORTANT
 export interface AgentRecord {
   ansName: string; // full ANS-style name, e.g. "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.example.com"
   domain: string;
-  agentSlug: string; // DNS-record label, e.g. "labelagent-simvastatin"
+  agentSlug: string; // DNS-record label, e.g. "simvastatin"
   version: string; // e.g. "v1.0.0", parsed from the ANS name at registration
   publicKeyBase64: string;
   createdAt: number;
@@ -20,9 +22,18 @@ export interface PendingChallenge {
   used: boolean;
 }
 
-// Puts all Agents and Pending Challenges into Maps [finds objects by key]
-const agentsByAnsName = new Map<string, AgentRecord>();
+// Puts all Agents into a Map [finds objects by key], persisted to disk so a
+// restart doesn't wipe registrations. Challenges are short-lived (TTL'd in
+// seconds/minutes) and not worth persisting -- a restart just means
+// re-issuing one.
+const agentsByAnsName = new Map<string, AgentRecord>(
+  loadJson<[string, AgentRecord][]>("agents.json", [])
+);
 const challenges = new Map<string, PendingChallenge>();
+
+function persistAgents(): void {
+  saveJson("agents.json", Array.from(agentsByAnsName.entries()));
+}
 
 function agentKey(domain: string, agentName: string): string {
   return `${domain.toLowerCase()}::${agentName.toLowerCase()}`;
@@ -30,6 +41,7 @@ function agentKey(domain: string, agentName: string): string {
 
 export function saveAgent(record: AgentRecord): void {
   agentsByAnsName.set(record.ansName, record);
+  persistAgents();
 }
 
 /** Look up by the exact ANS-style name — this is what POST /verify receives. */
@@ -48,7 +60,10 @@ export function getAgent(domain: string, agentName: string): AgentRecord | undef
 
 export function revokeAgent(ansName: string): void {
   const record = agentsByAnsName.get(ansName);
-  if (record) record.revoked = true;
+  if (record) {
+    record.revoked = true;
+    persistAgents();
+  }
 }
 
 export function saveChallenge(challenge: PendingChallenge): void {

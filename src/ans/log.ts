@@ -6,6 +6,8 @@
  * A list in memory of agents that get registered or revoked
  */
 
+import { loadJson, saveJson } from "../persist";
+
 export interface LogEntry {
   ansName: string;
   domain: string;
@@ -15,10 +17,11 @@ export interface LogEntry {
   at: number;
 }
 
-const entries: LogEntry[] = [];
+const entries: LogEntry[] = loadJson<LogEntry[]>("log.json", []);
 
 export function appendLogEntry(entry: LogEntry): void {
   entries.push(entry);
+  saveJson("log.json", entries);
 }
 
 // True if this exact ANS name has a "registered" entry in the log
