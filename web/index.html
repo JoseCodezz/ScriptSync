@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScriptSync</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <h1>ScriptSync</h1>
+      <span id="status" class="pill pill-muted">Checking assistant…</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card" id="ask-section">
+      <h2>Ask a drug question</h2>
+      <p class="hint">Each manufacturer's agent answers only from its own public label. Nothing here is medical advice.</p>
+      <form id="ask-form">
+        <label for="question" class="sr-only">Question</label>
+        <textarea id="question" rows="2" placeholder="e.g. What do I need to know about CYP3A interactions?"></textarea>
+        <div class="row">
+          <button type="submit" id="ask-btn" class="btn btn-primary">Ask</button>
+          <span class="examples">
+            Try:
+            <button type="button" class="chip" data-q="What do I need to know about CYP3A interactions?">CYP3A interactions</button>
+            <button type="button" class="chip" data-q="Is there anything on kidney dosing?">Kidney dosing (a gap)</button>
+          </span>
+        </div>
+      </form>
+    </section>
+
+    <section id="results" hidden></section>
+
+    <section class="card" id="attack-section">
+      <h2>Try an impostor</h2>
+      <p class="hint">Each button sends a fake agent that claims to be a demo agent. Watch it get blocked before any of its text is shown.</p>
+      <div class="row">
+        <button class="btn" data-attack="lookalike">Lookalike domain</button>
+        <button class="btn" data-attack="expired">Expired identity</button>
+        <button class="btn" data-attack="replay">Replayed old message</button>
+        <button class="btn" data-attack="revoked">Revoked version</button>
+      </div>
+      <div id="attack-result"></div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    Demo agents serving placeholder text, not operated by any manufacturer.
+    Identity verification is <strong>simulated</strong>; signing uses a demo key.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
