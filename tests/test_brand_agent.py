@@ -142,14 +142,23 @@ def test_ans_identity() -> None:
 
     os.environ["ANS_DNS_VERIFY"] = "1"
     anchored, detail = check_dns_anchor(name, identity.public_key_b64)
-    # Before the TXT records are published this is False (record absent); after,
-    # True. Either is a real answer - the thing that must never happen is a pass
-    # that was not actually checked.
-    check("live dns check returns a real verdict", anchored in (True, False), detail)
-    if anchored:
+    # Three legitimate outcomes: True (key published and matches), False (asked,
+    # and the key is absent or different), None (could not ask at all - DNS
+    # unreachable, or the zone SERVFAILs on a broken DNSSEC chain). The
+    # invariant that matters is the one below: never True without a real check.
+    check("live dns check returns a defined verdict", anchored in (True, False, None), detail)
+    if anchored is True:
         PASSED.append(f"DNS ANCHORED LIVE - {detail}")
+    elif anchored is None:
+        PASSED.append(f"DNS UNREACHABLE (reported, not passed) - {detail[:90]}")
     wrong, wrong_detail = check_dns_anchor(name, other.public_key_b64)
     check("a key the domain does not publish never passes", wrong is not True, wrong_detail)
+
+    # The security invariant: an unreachable or failing lookup must never be
+    # reported as anchored, whatever the cause.
+    check("unresolvable name is never anchored",
+          check_dns_anchor(ANSName.build("nosuchagent", "invalid-zone-xyz.example"),
+                           identity.public_key_b64)[0] is not True)
 
     os.environ.pop("ANS_DNS_VERIFY", None)
     if previous is not None:
