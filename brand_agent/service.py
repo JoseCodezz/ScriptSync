@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from common.signing import now_iso, sign_response
 
 from .ans import AgentIdentity, ANSName, check_dns_anchor
-from .selector import select
+from .selector import select, selection_mode
 
 
 class AnswerRequest(BaseModel):
@@ -134,7 +134,7 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
     @app.get("/health")
     async def health() -> dict:
         return {"ok": True, "agent": ans_name.full, "drug": drug,
-                "sections": len(sections)}
+                "sections": len(sections), "selection": selection_mode()}
 
     @app.post("/answer")
     async def answer(request: AnswerRequest) -> dict:

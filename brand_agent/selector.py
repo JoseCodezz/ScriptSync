@@ -12,12 +12,18 @@ demo still runs.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 MODEL = os.environ.get("SCRIPTSYNC_MODEL", "claude-opus-5")
+
+
+def selection_mode() -> str:
+    """Which path section selection will take, for startup logging and /health."""
+    return f"claude ({MODEL})" if os.environ.get("ANTHROPIC_API_KEY") else "keyword-fallback (no ANTHROPIC_API_KEY)"
 
 SYSTEM = """You route a clinician's question to passages of ONE drug label: {drug}.
 
@@ -136,5 +142,11 @@ async def select(
             selection.reason = "No matching passage in this label."
         return selection, "model"
 
-    except Exception:  # noqa: BLE001 - never let the demo die on an API problem
-        return keyword_select(question, sections), "keyword-fallback"
+    except Exception as exc:  # noqa: BLE001 - never let the demo die on an API problem
+        # Silently degrading to keyword matching would hide a bad key or a rate
+        # limit behind a plausible-looking answer, so name the cause.
+        logging.getLogger(__name__).warning(
+            "Model selection failed (%s: %s); using keyword fallback",
+            type(exc).__name__, exc,
+        )
+        return keyword_select(question, sections), f"keyword-fallback ({type(exc).__name__})"

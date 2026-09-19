@@ -28,6 +28,9 @@ def main() -> None:
     parser.add_argument("--version", default="v1.0.0")
     args = parser.parse_args()
 
+    from .selector import selection_mode
+
+    print(f"[{args.label.stem}] section selection: {selection_mode()}", flush=True)
     app = build_app(args.label, domain=args.domain, version=args.version)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
