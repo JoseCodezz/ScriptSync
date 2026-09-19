@@ -6,7 +6,7 @@
       "role": "brand",
       "brand": "Simvastatin",
       "drug": "simvastatin",
-      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.example",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.health",
       "endpoint": "http://127.0.0.1:9001"
     },
     {
@@ -14,7 +14,7 @@
       "role": "brand",
       "brand": "Clarithromycin",
       "drug": "clarithromycin",
-      "ansName": "a2a://labelAgent.drugInfo.clarithromycin.v1.0.0.scriptsync.example",
+      "ansName": "a2a://labelAgent.drugInfo.clarithromycin.v1.0.0.scriptsync.health",
       "endpoint": "http://127.0.0.1:9002"
     },
     {
@@ -23,12 +23,12 @@
       "attack": "lookalike",
       "brand": "Simvastatin",
       "drug": "simvastatin",
-      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync-labels.example",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync-labels.health",
       "endpoint": "http://127.0.0.1:9101",
       "identity_stub": {
         "dns": {
           "pass": false,
-          "message": "No domain record: scriptsync-labels.example was never registered"
+          "message": "No domain record: scriptsync-labels.health was never registered"
         },
         "cert": {
           "pass": false,
@@ -40,7 +40,7 @@
         }
       },
       "warnings": [
-        "Lookalike domain: scriptsync-labels.example imitates scriptsync.example"
+        "Lookalike domain: scriptsync-labels.health imitates scriptsync.health"
       ]
     },
     {
@@ -49,7 +49,7 @@
       "attack": "expired",
       "brand": "Simvastatin",
       "drug": "simvastatin",
-      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.1.0.scriptsync.example",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.1.0.scriptsync.health",
       "endpoint": "http://127.0.0.1:9102",
       "identity_stub": {
         "cert": {
@@ -64,7 +64,7 @@
       "attack": "replay",
       "brand": "Simvastatin",
       "drug": "simvastatin",
-      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.example",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.health",
       "endpoint": "http://127.0.0.1:9103"
     },
     {
@@ -73,7 +73,7 @@
       "attack": "revoked",
       "brand": "Simvastatin",
       "drug": "simvastatin",
-      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v0.9.0.scriptsync.example",
+      "ansName": "a2a://labelAgent.drugInfo.simvastatin.v0.9.0.scriptsync.health",
       "endpoint": "http://127.0.0.1:9104",
       "identity_stub": {
         "current": {

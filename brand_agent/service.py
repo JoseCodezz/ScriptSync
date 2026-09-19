@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from common.signing import now_iso, sign_response
@@ -32,7 +32,12 @@ class AnswerRequest(BaseModel):
 
 
 class ChallengeRequest(BaseModel):
+    """An ans-verify challenge round, as issued by POST /agents/challenge."""
+
+    domain: str
+    agent: str
     challenge: str
+    issuedAt: int
 
 
 def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI:
@@ -49,7 +54,7 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
 
     @app.get("/identity")
     async def get_identity() -> dict:
-        anchored, detail = check_dns_anchor(ans_name, identity.fingerprint)
+        anchored, detail = check_dns_anchor(ans_name, identity.public_key_b64)
         return {
             # The assistant reads only agentName; the rest is for ANS verification.
             "agentName": ans_name.full,
@@ -64,6 +69,10 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
                 "effectiveTime": meta["effective_time"],
             },
             "ans": {
+                # `agent` and `domain` are what ans-verify wants in its
+                # challenge/verify calls - not the full a2a:// name.
+                "agent": ans_name.dns_label,
+                "domain": ans_name.domain,
                 "publicKey": identity.public_key_b64,
                 "keyAlgorithm": "ed25519",
                 "keyEncoding": "base64-spki-der",
@@ -77,11 +86,28 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
 
     @app.post("/ans/challenge")
     async def ans_challenge(request: ChallengeRequest) -> dict:
-        """Sign a verifier-supplied nonce, proving key possession right now."""
+        """Sign an ans-verify challenge, proving key possession right now.
+
+        Refuses to sign for any identity other than its own - otherwise this
+        endpoint would mint signatures asserting the agent is someone else.
+        """
+        if request.domain != ans_name.domain or request.agent != ans_name.dns_label:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"This agent is {ans_name.dns_label}@{ans_name.domain}; "
+                    f"refusing to sign for {request.agent}@{request.domain}"
+                ),
+            )
         return {
             "agentName": ans_name.full,
+            "domain": request.domain,
+            "agent": request.agent,
             "challenge": request.challenge,
-            "signature": identity.sign_challenge(request.challenge),
+            "issuedAt": request.issuedAt,
+            "signature": identity.sign_challenge(
+                request.domain, request.agent, request.challenge, request.issuedAt
+            ),
             "publicKey": identity.public_key_b64,
         }
 

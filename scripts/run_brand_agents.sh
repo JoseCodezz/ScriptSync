@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PYTHON:-.venv/bin/python}
-DOMAIN=${ANS_DOMAIN:-scriptsync.example}
+DOMAIN=${ANS_DOMAIN:-scriptsync.health}
 
 $PY -m brand_agent --label labels/simvastatin.json    --port 9001 --domain "$DOMAIN" &
 $PY -m brand_agent --label labels/clarithromycin.json --port 9002 --domain "$DOMAIN" &

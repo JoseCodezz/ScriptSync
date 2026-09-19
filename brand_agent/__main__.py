@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument("--label", required=True, type=Path)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
-    parser.add_argument("--domain", default=os.environ.get("ANS_DOMAIN", "scriptsync.example"))
+    parser.add_argument("--domain", default=os.environ.get("ANS_DOMAIN", "scriptsync.health"))
     parser.add_argument("--version", default="v1.0.0")
     args = parser.parse_args()
 

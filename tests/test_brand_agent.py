@@ -17,7 +17,10 @@ from pathlib import Path
 
 import httpx
 
-from brand_agent.ans import ANSName, AgentIdentity, verify_challenge, check_dns_anchor
+from brand_agent.ans import (
+    ANSName, AgentIdentity, verify_challenge, check_dns_anchor,
+    signing_payload, parse_public_key_from_txt,
+)
 from brand_agent.service import build_app
 from common.signing import verify_signature, check_freshness, SIGNED_FIELDS
 
@@ -82,9 +85,11 @@ def test_verbatim_against_openfda() -> None:
 
 
 def test_ans_identity() -> None:
-    name = ANSName.build("simvastatin", "scriptsync.example")
-    check("ANS name parses", name.provider == "simvastatin" and name.domain == "scriptsync.example")
-    check("ANS TXT record derived", name.txt_record == "_ans.simvastatin.scriptsync.example")
+    name = ANSName.build("simvastatin", "scriptsync.health")
+    check("ANS name parses", name.provider == "simvastatin" and name.domain == "scriptsync.health")
+    check("ANS TXT record matches dns.ts recordNameFor",
+          name.txt_record == "_agentid.simvastatin.scriptsync.health", name.txt_record)
+    check("DNS label is a single valid label", name.dns_label == "simvastatin")
 
     for bad in ["simvastatin.v1.0.0.x.com", "a2a://a.b.c.d.e", "a2a://a.b.c.v1.0.example"]:
         try:
@@ -94,42 +99,79 @@ def test_ans_identity() -> None:
             check(f"rejects malformed name {bad!r}", True)
 
     identity = AgentIdentity.load_or_create(name)
-    nonce = secrets.token_urlsafe(16)
-    signature = identity.sign_challenge(nonce)
-    check("challenge signature verifies",
-          verify_challenge(nonce, signature, identity.public_key_b64))
-    check("different nonce rejected",
-          not verify_challenge("other", signature, identity.public_key_b64))
+    nonce, issued = secrets.token_urlsafe(16), 1758300000000
+    args = ("scriptsync.health", "simvastatin", nonce, issued)
+    signature = identity.sign_challenge(*args)
 
-    other = AgentIdentity.load_or_create(ANSName.build("clarithromycin", "scriptsync.example"))
+    # Byte-for-byte match with buildSigningPayload() in ans-verify.
+    check("signing payload matches ans-verify format",
+          signing_payload(*args)
+          == f"agent-identity-v1|scriptsync.health|simvastatin|{nonce}|{issued}",
+          signing_payload(*args))
+
+    check("challenge signature verifies", verify_challenge(*args, signature, identity.public_key_b64))
+    check("different nonce rejected",
+          not verify_challenge("scriptsync.health", "simvastatin", "other", issued,
+                               signature, identity.public_key_b64))
+    check("altered issuedAt rejected",
+          not verify_challenge("scriptsync.health", "simvastatin", nonce, issued + 1,
+                               signature, identity.public_key_b64))
+    check("swapped agent name rejected",
+          not verify_challenge("scriptsync.health", "clarithromycin", nonce, issued,
+                               signature, identity.public_key_b64))
+
+    other = AgentIdentity.load_or_create(ANSName.build("clarithromycin", "scriptsync.health"))
     check("other agent's key rejected",
-          not verify_challenge(nonce, signature, other.public_key_b64))
+          not verify_challenge(*args, signature, other.public_key_b64))
     check("agents have distinct keys", identity.fingerprint != other.fingerprint)
+
+    # TXT value must round-trip through the dns.ts parser.
+    check("TXT value uses v=agentkey1 format",
+          identity.txt_value().startswith("v=agentkey1; k="), identity.txt_value()[:24])
+    check("TXT value parses back to the full public key",
+          parse_public_key_from_txt(identity.txt_value()) == identity.public_key_b64)
 
     # SPKI DER is what ans-verify/src/crypto/agentKeys.ts emits and reads.
     check("public key is SPKI DER", identity.public_key_b64.startswith("MCowBQYDK2Vw"))
 
-    anchored, _ = check_dns_anchor(name, identity.fingerprint)
-    check("placeholder domain is 'unknown', never a pass", anchored is None)
+    anchored, _ = check_dns_anchor(name, identity.public_key_b64)
+    check("dns check off by default returns unknown, never a pass", anchored is None)
+
     os.environ["ANS_DNS_VERIFY"] = "1"
-    anchored, detail = check_dns_anchor(name, identity.fingerprint)
-    check("placeholder still not a pass with verification on", anchored is None, detail)
+    anchored, detail = check_dns_anchor(name, identity.public_key_b64)
+    # Before the TXT records are published this is False (record absent); after,
+    # True. Either is a real answer - the thing that must never happen is a pass
+    # that was not actually checked.
+    check("live dns check returns a real verdict", anchored in (True, False), detail)
+    if anchored:
+        PASSED.append(f"DNS ANCHORED LIVE - {detail}")
+    wrong, wrong_detail = check_dns_anchor(name, other.public_key_b64)
+    check("a key not in DNS never passes", wrong is not True, wrong_detail)
     os.environ.pop("ANS_DNS_VERIFY")
 
 
 async def test_service() -> None:
-    app = build_app(LABELS["simvastatin"], domain="scriptsync.example")
+    app = build_app(LABELS["simvastatin"], domain="scriptsync.health")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://agent") as client:
         identity = (await client.get("/identity")).json()
         check("identity exposes agentName", "agentName" in identity)
         check("identity exposes ANS key", "publicKey" in identity["ans"])
-        check("identity states dns not anchored", identity["ans"]["dnsAnchored"] is None)
+        check("identity exposes ans-verify agent + domain",
+              identity["ans"]["agent"] == "simvastatin"
+              and identity["ans"]["domain"] == "scriptsync.health")
 
-        nonce = secrets.token_urlsafe(16)
-        proof = (await client.post("/ans/challenge", json={"challenge": nonce})).json()
+        nonce, issued = secrets.token_urlsafe(16), 1758300000000
+        body = {"domain": "scriptsync.health", "agent": "simvastatin",
+                "challenge": nonce, "issuedAt": issued}
+        proof = (await client.post("/ans/challenge", json=body)).json()
         check("live challenge-response over HTTP",
-              verify_challenge(nonce, proof["signature"], identity["ans"]["publicKey"]))
+              verify_challenge("scriptsync.health", "simvastatin", nonce, issued,
+                               proof["signature"], identity["ans"]["publicKey"]))
+
+        impostor = await client.post("/ans/challenge", json={**body, "agent": "clarithromycin"})
+        check("refuses to sign for another identity", impostor.status_code == 400,
+              str(impostor.status_code))
 
         answer = (await client.post(
             "/answer",

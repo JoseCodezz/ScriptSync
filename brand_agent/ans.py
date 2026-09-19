@@ -10,10 +10,18 @@ The trust chain, strongest link last:
 
 Step 3 is the GoDaddy piece and the only one still waiting on a domain.
 
-Key encoding is base64 SPKI DER, matching `generateAgentKeyPair()` in
-ans-verify/src/crypto/agentKeys.ts, so keys minted by either side verify against
-the other. (Raw 32-byte encoding would NOT interoperate - it was the mismatch
-worth catching before both halves were written.)
+This module implements the ans-verify wire protocol exactly. All four of these
+must match or verification silently fails:
+
+    TXT host    _agentid.<agent>.<domain>        (dns.ts recordNameFor)
+    TXT value   "v=agentkey1; k=<base64 SPKI>"   (dns.ts publishAgentTxtRecord)
+    key format  base64 SPKI DER                  (agentKeys.ts)
+    signed msg  agent-identity-v1|domain|agent|challenge|issuedAt
+                                                 (verifyAgent.ts buildSigningPayload)
+
+The full public key lives in DNS, not a fingerprint of it. That is the stronger
+design: a third-party verifier needs nothing but a public DNS lookup and never
+has to contact - or trust - the agent itself.
 """
 
 from __future__ import annotations
@@ -72,9 +80,23 @@ class ANSName:
         return cls.parse(f"a2a://labelAgent.drugInfo.{drug}.{version}.{domain}")
 
     @property
+    def dns_label(self) -> str:
+        """The single DNS label naming this agent, e.g. "simvastatin".
+
+        ans-verify validates this as /^[a-zA-Z0-9-]{1,63}$/ - it is the `agent`
+        field in every challenge/verify call, NOT the full a2a:// name.
+        """
+        return self.provider
+
+    @property
     def txt_record(self) -> str:
-        """FQDN of the TXT record that pins this agent's key."""
-        return f"_ans.{self.provider}.{self.domain}"
+        """FQDN of the TXT record holding this agent's public key."""
+        return f"_agentid.{self.dns_label}.{self.domain}"
+
+    @property
+    def txt_host(self) -> str:
+        """The host field as a registrar's DNS panel wants it (no domain suffix)."""
+        return f"_agentid.{self.dns_label}"
 
 
 class AgentIdentity:
@@ -125,34 +147,62 @@ class AgentIdentity:
     def fingerprint(self) -> str:
         return hashlib.sha256(base64.b64decode(self.public_key_b64)).hexdigest()
 
-    def sign_challenge(self, challenge: str) -> str:
-        """Prove key possession right now. Verifier supplies a fresh nonce."""
-        return base64.b64encode(
-            self._private_key.sign(challenge.encode("utf-8"))
-        ).decode("ascii")
+    def sign_payload(self, payload: str) -> str:
+        return base64.b64encode(self._private_key.sign(payload.encode("utf-8"))).decode("ascii")
+
+    def sign_challenge(self, domain: str, agent: str, challenge: str, issued_at: int) -> str:
+        """Sign an ans-verify challenge round.
+
+        The payload is rebuilt here from its components rather than signing a
+        string handed to us. Blind-signing whatever a caller sends would let
+        that caller obtain a signature over text of their choosing.
+        """
+        return self.sign_payload(signing_payload(domain, agent, challenge, issued_at))
 
     def txt_value(self) -> str:
-        """Exactly what to paste into the GoDaddy TXT record."""
-        return (
-            f"v=ans1; name={self.ans_name.full}; alg=ed25519; "
-            f"key=sha256:{self.fingerprint}"
-        )
+        """Exactly what to paste into the DNS TXT record."""
+        return f"v=agentkey1; k={self.public_key_b64}"
 
 
-def verify_challenge(challenge: str, signature_b64: str, public_key_b64: str) -> bool:
-    """Check a challenge signature against a base64 SPKI DER public key."""
+def signing_payload(domain: str, agent: str, challenge: str, issued_at: int) -> str:
+    """The canonical string both sides must build identically.
+
+    Mirrors buildSigningPayload() in ans-verify/src/crypto/verifyAgent.ts. Any
+    difference here - field order, separator, stringified number - produces a
+    signature that fails to verify with no useful error.
+    """
+    return f"agent-identity-v1|{domain}|{agent}|{challenge}|{issued_at}"
+
+
+def verify_payload(payload: str, signature_b64: str, public_key_b64: str) -> bool:
+    """Check a signature over an exact payload string, given a base64 SPKI key."""
     try:
         key = serialization.load_der_public_key(base64.b64decode(public_key_b64))
         if not isinstance(key, Ed25519PublicKey):
             return False
-        key.verify(base64.b64decode(signature_b64), challenge.encode("utf-8"))
+        key.verify(base64.b64decode(signature_b64), payload.encode("utf-8"))
         return True
     except (InvalidSignature, ValueError, TypeError):
         return False
 
 
-def check_dns_anchor(ans_name: ANSName, fingerprint: str) -> tuple[bool | None, str]:
-    """Resolve the agent's TXT record and confirm it pins this key.
+def verify_challenge(
+    domain: str, agent: str, challenge: str, issued_at: int,
+    signature_b64: str, public_key_b64: str,
+) -> bool:
+    return verify_payload(
+        signing_payload(domain, agent, challenge, issued_at), signature_b64, public_key_b64
+    )
+
+
+def parse_public_key_from_txt(txt_value: str) -> str | None:
+    """Pull the base64 key out of "v=agentkey1; k=<base64>" (dns.ts parser)."""
+    match = re.search(r"k=([A-Za-z0-9+/=_-]+)", txt_value)
+    return match.group(1) if match else None
+
+
+def check_dns_anchor(ans_name: ANSName, public_key_b64: str) -> tuple[bool | None, str]:
+    """Resolve the agent's TXT record and confirm it publishes this exact key.
 
     Returns (anchored, detail). None means the check was not attempted - either
     ANS_DNS_VERIFY is off or the name still uses a placeholder domain. None is
@@ -173,9 +223,14 @@ def check_dns_anchor(ans_name: ANSName, fingerprint: str) -> tuple[bool | None, 
     except Exception as exc:  # noqa: BLE001 - any DNS failure is a failed check
         return False, f"TXT lookup for {ans_name.txt_record} failed: {exc}"
 
-    expected = f"key=sha256:{fingerprint}"
     for record in answers:
         value = b"".join(record.strings).decode("utf-8", errors="replace")
-        if expected in value:
-            return True, f"Key pinned by TXT record at {ans_name.txt_record}"
-    return False, f"TXT record at {ans_name.txt_record} does not pin this key"
+        published = parse_public_key_from_txt(value)
+        if published == public_key_b64:
+            return True, f"Public key published at {ans_name.txt_record}"
+        if published:
+            return False, (
+                f"TXT record at {ans_name.txt_record} publishes a DIFFERENT key "
+                "than this agent holds"
+            )
+    return False, f"No v=agentkey1 TXT record found at {ans_name.txt_record}"

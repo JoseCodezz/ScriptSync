@@ -83,59 +83,62 @@ GET  /health
 sending only `{question}` are unaffected. Answers are HMAC-signed with
 `common/signing.py`, exactly as the assistant expects.
 
-## ANS identity — what works, and the one thing left
+## ANS identity
 
-Each agent holds an Ed25519 key and serves:
+Domain: **scriptsync.health** (registered at Porkbun). Each agent holds an
+Ed25519 key and implements the `ans-verify` protocol exactly:
 
+| | value |
+|---|---|
+| TXT host | `_agentid.<agent>.scriptsync.health` |
+| TXT value | `v=agentkey1; k=<base64 SPKI DER public key>` |
+| signed payload | `agent-identity-v1\|domain\|agent\|challenge\|issuedAt` |
+| endpoint | `POST /ans/challenge {domain, agent, challenge, issuedAt}` |
+
+The **full public key** goes in DNS, not a fingerprint. That means a verifier
+needs nothing but a public DNS lookup and never has to contact or trust the
+agent. `/ans/challenge` rebuilds the payload from its components and refuses to
+sign for any identity but its own — blind-signing a caller-supplied string would
+let that caller obtain a signature over text of their choosing.
+
+### Publishing the records
+
+```bash
+ANS_DOMAIN=scriptsync.health .venv/bin/python scripts/ans_records.py
 ```
-"ans": {
-  "publicKey": "MCowBQYDK2VwAyEA…",      base64 SPKI DER
-  "keyFingerprint": "5e7bc620…",
-  "dnsRecord": "_ans.simvastatin.<domain>",
-  "dnsTxtValue": "v=ans1; name=a2a://…; alg=ed25519; key=sha256:5e7bc620…",
-  "dnsAnchored": null,
-  "dnsDetail": "scriptsync.example is a placeholder; no domain registered yet"
-}
+
+Add each one in **Porkbun → Details → DNS Records** (type TXT, host
+`_agentid.simvastatin`, answer the `v=agentkey1; …` string, TTL 600). Confirm:
+
+```bash
+dig +short TXT _agentid.simvastatin.scriptsync.health
 ```
 
-`POST /ans/challenge` signs a verifier-supplied nonce, so a verifier proves the
-agent **holds the key right now** rather than replayed an old signature. Tested
-live over HTTP, including nonce reuse and cross-agent key substitution.
+Note: `ans-verify/src/godaddy/dns.ts` publishes via the **GoDaddy API**, which
+cannot write to a Porkbun-hosted zone. Publish by hand, or point the code at
+Porkbun's API. Verification is unaffected — `lookup.ts` reads public DNS and is
+registrar-agnostic.
 
-**Key encoding is base64 SPKI DER**, matching `generateAgentKeyPair()` in
-`ans-verify/src/crypto/agentKeys.ts`. Raw 32-byte encoding would not
-interoperate — worth knowing before both halves are finished.
+### Proving it works
 
-`dnsAnchored` is **`null` = unknown, never a pass.** It only becomes `true` or
-`false` once a real domain exists. Three steps:
+```bash
+./scripts/run_brand_agents.sh
+.venv/bin/python scripts/ans_verify_live.py
+```
 
-1. Register a domain in GoDaddy. Print the records:
-   ```bash
-   ANS_DOMAIN=yourdomain.com .venv/bin/python -c "
-   from pathlib import Path; import json
-   from brand_agent.ans import ANSName, AgentIdentity
-   for d in ('simvastatin','clarithromycin'):
-       n = ANSName.build(d, 'yourdomain.com')
-       i = AgentIdentity.load_or_create(n)
-       print(f'{n.txt_record}  TXT  {i.txt_value()}')"
-   ```
-2. In GoDaddy DNS Management add one TXT record per agent — host
-   `_ans.simvastatin`, value the `v=ans1; …` string. Confirm with
-   `dig +short TXT _ans.simvastatin.yourdomain.com`.
-3. Run with the real domain and turn verification on:
-   ```bash
-   ANS_DOMAIN=yourdomain.com ./scripts/run_brand_agents.sh
-   ANS_DNS_VERIFY=1 .venv/bin/python -m uvicorn assistant.server:app --port 8080
-   ```
-   Update the `ansName` values in `config/agents.json` to the new domain.
+A standalone third-party verifier: issues a challenge, has the agent sign it,
+reads the key **from DNS**, verifies, and checks that a replayed signature fails
+for a different round. Works without the Node service, which is still
+`forceError;` in `src/server.ts`.
 
 ### Honest limits
 
 DNS proves whoever controls the zone vouches for the key. Without DNSSEC the
-lookup is spoofable by an on-path attacker, and DNS has no revocation story —
-pulling a key means editing a record and waiting out the TTL. A production ANS
-puts a CA and certificate lifecycle behind this. Say so in the pitch; the
-"simulated / live" honesty rule in CLAUDE.md covers this too.
+lookup is spoofable on-path, and DNS has no revocation — pulling a key means
+editing a record and waiting out the TTL. A production ANS puts a CA and
+certificate lifecycle behind this. The "simulated vs live" honesty rule in
+CLAUDE.md applies.
+
 
 ## Notes for the rest of the team
 
