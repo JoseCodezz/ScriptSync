@@ -7,12 +7,16 @@ PY=${PYTHON:-.venv/bin/python}
 echo "ScriptSync preflight"
 echo "--------------------"
 
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "  API key .......... set (${#ANTHROPIC_API_KEY} chars)"
-else
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
   echo "  API key .......... MISSING - agents will use keyword fallback"
   echo "                     cp .env.example .env and add ANTHROPIC_API_KEY"
+elif [ "${ANTHROPIC_API_KEY#sk-ant-}" = "$ANTHROPIC_API_KEY" ] || [ ${#ANTHROPIC_API_KEY} -lt 90 ]; then
+  echo "  API key .......... MALFORMED (${#ANTHROPIC_API_KEY} chars, expected sk-ant-... ~100+)"
+  echo "                     that looks like a key NAME, not the secret value"
+else
+  echo "  API key .......... set (${#ANTHROPIC_API_KEY} chars)"
 fi
+"$PY" -c "import dotenv" 2>/dev/null || echo "  python-dotenv .... MISSING - .env will NOT be loaded"
 
 for port in 9001 9002 8080; do
   if curl -sf --max-time 3 "http://127.0.0.1:$port/health" >/dev/null 2>&1; then
