@@ -64,7 +64,9 @@ async function main() {
   check("subject extracted correctly", parsed.subject === "simvastatin");
   check("version extracted correctly", parsed.version === "v1.0.0");
   check("domain extracted correctly", parsed.domain === TEST_DOMAIN);
-  check("agentSlug built correctly", parsed.agentSlug === "labelagent-simvastatin");
+  // agentSlug must equal just the subject/drug name (e.g. "simvastatin"), matching
+  // the real brand agents' ANSName.dns_label -- see ans/name.ts for why.
+  check("agentSlug built correctly", parsed.agentSlug === "simvastatin");
 
   console.log("\n=== 2. Reject a malformed name ===");
   const bad = parseAnsName("not-a-real-ans-name");

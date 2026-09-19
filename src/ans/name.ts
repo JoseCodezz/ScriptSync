@@ -40,7 +40,13 @@ export function parseAnsName(rawInput: string): AnsName | null {
     subject,
     version,
     domain: domain.toLowerCase(),
-    agentSlug: `${role}-${subject}`.toLowerCase(),
+    // Must equal the Python brand agents' `ANSName.dns_label` (= provider/
+    // subject only, e.g. "simvastatin") -- that's what they publish in DNS
+    // at _agentid.<subject>.<domain> and what they check the "agent" field
+    // against in POST /ans/challenge. Anything else here (e.g. including
+    // `role`) means this verifier can never match a real agent's DNS record
+    // or challenge response.
+    agentSlug: subject.toLowerCase(),
     raw,
   };
 }

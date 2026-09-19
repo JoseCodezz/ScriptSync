@@ -76,13 +76,14 @@ contractVerifyRouter.post("/verify", async (req: Request, res: Response) => {
   // --- Check 1: dns ---
   let publishedKey: string | null = null;
   try {
-    publishedKey = await lookupAgentPublicKeyViaDns(parsed.domain, parsed.agentSlug);
+    const { key, how } = await lookupAgentPublicKeyViaDns(parsed.domain, parsed.agentSlug);
+    publishedKey = key;
     checks.push({
       id: "dns",
       pass: !!publishedKey,
       message: publishedKey
-        ? `Public key found in DNS TXT record for ${parsed.agentSlug}.${parsed.domain}.`
-        : `No agent-identity TXT record found for ${parsed.agentSlug}.${parsed.domain}.`,
+        ? `Public key found in DNS TXT record for ${parsed.agentSlug}.${parsed.domain} (via ${how}).`
+        : `No agent-identity TXT record found for ${parsed.agentSlug}.${parsed.domain} (${how}).`,
     });
   } catch (err: any) {
     checks.push({ id: "dns", pass: false, message: `DNS lookup failed: ${err.message}` });
