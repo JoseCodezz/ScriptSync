@@ -1,4 +1,4 @@
-// ScriptSync Pulse dashboard. Talks to the assistant API (see assistant/server.py).
+// ScriptSync Pulse: a chat for the doctor's assistant. Talks to the assistant API (assistant/server.py).
 // Every string that comes from the API goes through esc() before it reaches innerHTML.
 const API = "http://127.0.0.1:8080";
 
@@ -16,13 +16,15 @@ const EVENT_LABELS = {
   verify_failed: "Blocked: identity", signature_failed: "Blocked: signature",
   freshness_failed: "Blocked: stale message", identity_mismatch: "Blocked: name mismatch",
   answer: "Verified answer delivered", refused: "Agent declined", agent_error: "Agent unreachable",
-  skipped: "Skipped", attack: "Impostor test started", rules_changed: "Consent updated",
+  skipped: "Skipped", attack: "Impostor test started", rules_changed: "Rules updated",
   handoff_draft: "Handoff drafted", phi_blocked: "Patient identifiers refused",
 };
 const BLOCK_EVENTS = new Set(["verify_failed", "signature_failed", "freshness_failed", "identity_mismatch"]);
+const SUGGESTIONS = ["Can simvastatin be taken with clarithromycin?", "What do I need to know about CYP3A interactions?", "Should I switch from simvastatin to atorvastatin?"];
+const DEFAULT_Q = SUGGESTIONS[0];
 
 let journalLimit = 40;   // newest events shown first; "Show older events" adds 40 more
-const state = { online: false, health: null, agents: [], rules: null, log: [], last: null, sawAnswers: false, sawPlaceholder: false };
+const state = { online: false, health: null, agents: [], rules: null, log: [], busy: false, lastQuestion: null, sawAnswers: false, sawPlaceholder: false, msgs: new WeakMap() };
 
 // ---------- API ----------
 async function api(path, options) {
@@ -38,7 +40,7 @@ async function api(path, options) {
 }
 const send = (method, path, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-// ---------- trust pulse ----------
+// ---------- trust pulse (header) ----------
 const BEAT = "M0 27H50l6-3 5 3h14l5-20 8 42 5-22h34l6-3 5 3h20l5-20 8 42 5-22h20", FLAT = "M0 27H220";
 let pulseTimer;
 function pulse(bad, holdMs) {
@@ -48,29 +50,8 @@ function pulse(bad, holdMs) {
   if (bad && holdMs) pulseTimer = setTimeout(() => pulse(false), holdMs);
 }
 
-// ---------- navigation ----------
-const ICON = {
-  today: '<path d="M3 11l9-8 9 8M5 10v10h14V10"/>', consult: '<path d="M4 5h16v11H9l-5 4z"/>',
-  chart: '<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7"/>',
-  immune: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
-  consent: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
-  journal: '<path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM9 9h6M9 13h6"/>',
-  clear: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/>',
-};
-const NAV = [["today", "Today"], ["consult", "Consult"], ["chart", "Chart"], ["immune", "Immunity"], ["consent", "Consent"], ["journal", "Journal"], ["clear", "Transparency"]];
-$("#rail").innerHTML = NAV.map((n) => `<button data-nav="${n[0]}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[n[0]]}</svg>${n[1]}</button>`).join("");
-
-function show(v) {
-  document.querySelectorAll(".view").forEach((e) => e.classList.toggle("on", e.id === "v-" + v));
-  document.querySelectorAll("#rail button").forEach((b) => b.classList.toggle("on", b.dataset.nav === v));
-  if (v === "today") loadAgents();
-  if (v === "consent") loadConsent();
-  if (v === "journal" || v === "clear") refreshLog();
-}
-$("#rail").onclick = (e) => { const b = e.target.closest("[data-nav]"); if (b) show(b.dataset.nav); };
-
 // ---------- shared renderers ----------
-// One <li> per check. reveal=true leaves the row neutral (data-s) so the consult
+// One <li> per check. reveal=true leaves the row neutral (data-s) so the progress
 // animation can light it up; otherwise the row is colored straight away.
 function checkRows(v, failedIds = [], reveal = false) {
   const checks = v?.checks || [];
@@ -85,33 +66,258 @@ function checkRows(v, failedIds = [], reveal = false) {
   }).join("");
 }
 
-// Impostor / blocked result. The blocked text stays inside a closed <details>.
+// A blocked source. Its text stays inside a closed <details> and is labelled unverified.
 function alertCard(title, r) {
   if (r.status !== "blocked") {
-    return `<div class="alert"><span class="chip bad">NOT BLOCKED (status: ${esc(r.status)})</span><p style="margin-top:8px;font-weight:600">The impostor got through. That is a bug in the assistant.</p></div>`;
+    return `<div class="alert"><span class="chip bad">NOT BLOCKED (status: ${esc(r.status)})</span><p style="margin-top:8px;font-weight:600">That source got through. This is a bug in the assistant.</p></div>`;
   }
   const hidden = (r.hiddenContent || []).map((a) => esc(a.text)).join("\n\n") || "The blocked agent returned no text.";
   const warnings = (r.verification?.warnings || []).map((w) => `<div class="mono">⚠ ${esc(w)}</div>`).join("");
-  return `<div class="alert"><span class="chip bad">Flatline · blocked before display</span>
-    <h4 style="margin-top:6px;font-size:20px">${esc(title)}</h4>
+  return `<div class="alert"><span class="chip bad">Blocked before display</span>
+    <h4 style="margin-top:6px;font-size:18px">${esc(title)}</h4>
     <div class="mono">claims to be: ${esc(r.ansName)}</div>
     <p style="margin-top:8px;font-weight:600">${esc(r.reason)}</p>
     <ul class="ck">${checkRows(r.verification, r.failedChecks || [])}</ul>${warnings}
     <details><summary>Show what it tried to say</summary><div class="hid"><b>UNVERIFIED. Do not rely on this text.</b>\n${hidden}</div></details></div>`;
 }
 
-// ---------- status, agents, rules, log ----------
+// ---------- chat: messages ----------
+const thread = $("#thread");
+const EMPTY = `<div class="empty-state" id="empty"><svg class="ecg" viewBox="0 0 220 54" preserveAspectRatio="none" aria-hidden="true"><path d="${BEAT}"/></svg>
+  <h1>Ask about a <span class="gt">drug</span></h1>
+  <p>Answers come only from verified label agents, quoted word for word. A source that can't prove who it is is blocked before you see a word.</p>
+  <div class="ex" id="ex">${SUGGESTIONS.map((s) => `<button type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;
+
+function scrollDown() { thread.scrollTop = thread.scrollHeight; }
+function addUser(text) {
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  thread.append(el);
+  return el;
+}
+function addBot(html) {
+  const el = document.createElement("div");
+  el.className = "msg bot";
+  el.innerHTML = `<div class="avatar"><svg viewBox="0 0 26 20" aria-hidden="true"><path d="M1 10h5l3-8 5 16 3-8h8" fill="none" stroke="url(#lg)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="body">${html}</div>`;
+  thread.append(el);
+  return el;
+}
+function newChat() {
+  if (state.busy) return;
+  thread.innerHTML = EMPTY;
+  state.lastQuestion = null;
+  $("#q").focus();
+}
+
+// Progress cards shown while sources are being checked.
+function pendingCard(a) {
+  return `<div class="card"><h4>${esc(a.brand)} label agent</h4><ul class="ck">${CK.map((c) => `<li>${c[1]}</li>`).join("")}</ul><div><span class="chip">Contacting…</span></div></div>`;
+}
+function resultCard(kind, r) {
+  const v = r.verification;
+  const chip = {
+    verified: `<span class="chip ok">Verified (${esc(v?.mode || "simulated")})</span>`,
+    refused: '<span class="chip ok">Verified · declined to answer</span>',
+    blocked: '<span class="chip bad">Blocked</span>',
+    unreachable: '<span class="chip">Verified · did not respond</span>',
+    skipped: '<span class="chip">Skipped · not on your list</span>',
+  }[kind];
+  const rows = kind === "skipped" ? "" : `<ul class="ck">${checkRows(v, r.failedChecks || [], true)}</ul>`;
+  const why = kind === "blocked" ? `<p class="mono" style="margin-top:8px">${esc(r.reason)}</p>` : "";
+  return `<div class="card"><h4>${esc(r.brand)} label agent</h4>${rows}<div class="st" data-chip="${esc(chip)}"></div>${why}</div>`;
+}
+
+function passageCard(a) {
+  const meta = [`<b>Section ${esc(a.section)}</b>`, a.title && esc(a.title), a.labelVersion && esc(a.labelVersion), a.labelDate && esc(a.labelDate)].filter(Boolean).join(" · ");
+  const cut = a.source?.truncated ? '<span class="chip">excerpt (cut short)</span>' : "";
+  const long = String(a.text || "").length > 450;   // long passages start folded, with a visible toggle
+  return `<div class="card"><div class="passage-meta">${meta}</div><blockquote${long ? ' class="clamp"' : ""}>${esc(a.text)}</blockquote>${long ? '<button type="button" class="more">Show full passage</button><br>' : ""}${(a.tags || []).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}${cut}</div>`;
+}
+
+function sourceColumn(s) {
+  return `<div class="src"><div class="srchead"><h4>${esc(s.brand)} label agent</h4>
+    <span class="chip ok">✓ Verified (${esc(s.verification?.mode || "simulated")})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>
+    <div class="mono">${esc(s.ansName)} · signed ${esc(s.timestamp || "?")}</div>
+    <details class="how"><summary>Identity checks</summary><ul class="ck">${checkRows(s.verification)}</ul></details></div>
+    ${(s.answers || []).map(passageCard).join("")}</div>`;
+}
+
+function readLine(an) {
+  const bits = [
+    ...(an?.drugsMentioned || []).map((d) => `<span class="chip v">drug · ${esc(d.drug)}</span>`),
+    ...(an?.topics || []).map((t) => `<span class="chip">topic · ${esc(t)}</span>`),
+  ];
+  return bits.length ? `<div class="readline">Read your question as:${bits.join("")}</div>` : "";
+}
+
+// The whole assistant answer for one question.
+function answerHtml(d) {
+  const mode = d.sources[0]?.verification?.mode || state.health?.verification || "simulated";
+  const strip = [
+    d.sources.length ? `<span class="chip ok">✓ ${d.sources.length} verified</span>` : "",
+    d.blocked.length ? `<span class="chip bad">✕ ${d.blocked.length} blocked</span>` : "",
+    d.refused.length ? `<span class="chip">${d.refused.length} verified, declined</span>` : "",
+    d.skipped.length ? `<span class="chip">${d.skipped.length} skipped</span>` : "",
+    d.unreachable.length ? `<span class="chip bad">${d.unreachable.length} unreachable</span>` : "",
+    `<span class="chip v">verification ${esc(mode)}</span>`,
+  ].join("");
+  return `<div class="strip">${strip}</div>`
+    + (d.notices || []).map((n) => `<div class="note adv">${esc(n.message)}</div>`).join("")
+    + readLine(d.analysis)
+    + (d.sources.length ? `<div class="srcs">${d.sources.map(sourceColumn).join("")}</div>`
+      : (d.gaps.length || d.blocked.length ? "" : '<div class="note gap">No verified source had a passage for this question, so nothing is shown. ScriptSync does not guess.</div>'))
+    + d.overlaps.map((o) => `<div class="note ov"><b>Possible overlap · ${esc(o.tag)}</b><br>${esc(o.note)}<div>${o.statements.map((s) => `<span class="chip v">${esc(s.source)} · §${esc(s.section)}</span>`).join("")}</div></div>`).join("")
+    + d.gaps.map((g) => `<div class="note gap">${esc(g.message)}${String(g.topic).startsWith("drug:") ? "" : `<button type="button" data-t="${esc(g.topic)}">Draft handoff note</button><div class="draft"></div>`}</div>`).join("")
+    + d.refused.map((r) => `<div class="mono" style="margin-top:10px">✓ ${esc(r.brand)} label agent verified, but declined: ${esc(r.reason)}</div>`).join("")
+    + d.blocked.map((b) => alertCard(`${b.brand} label agent`, b)).join("")
+    + d.unreachable.map((u) => `<div class="note err">${esc(u.brand)} label agent did not respond. ${esc(u.reason)}</div>`).join("")
+    + d.skipped.map((k) => `<div class="mono" style="margin-top:10px">${esc(k.brand)} skipped: ${esc(k.reason)}</div>`).join("")
+    + `<p class="disc">${esc(d.disclaimer || "Cross-references are for clinician review. Not medical advice.")}</p>`;
+}
+
+// ---------- chat: asking ----------
+function setBusy(b) {
+  state.busy = b;
+  $("#go").disabled = b; $("#q").disabled = b;
+  $("#go").textContent = b ? "Checking…" : "Send";
+}
+
+// `impostor` (demo only) runs a real attack alongside the question, so the blocked
+// source shows up inside a normal answer.
+async function ask(question, { impostor } = {}) {
+  question = question.trim();
+  if (!question || state.busy) return;
+  setBusy(true);
+  state.lastQuestion = question;
+  $("#empty")?.remove();
+  const userEl = addUser(question);
+  const allowed = state.rules?.allowedBrands;
+  const show = state.agents.length ? state.agents.filter((a) => !allowed || allowed.includes(a.brand)) : [{ brand: "Assistant" }];
+  const botEl = addBot(`<div class="strip"><span class="chip">Checking sources…</span></div><div class="g">${show.map(pendingCard).join("")}</div>`);
+  const body = botEl.querySelector(".body");
+  scrollDown();
+  pulse(false);
+  try {
+    const [data, attack] = await Promise.all([
+      send("POST", "/ask", { question }),
+      impostor ? send("POST", `/attack/${encodeURIComponent(impostor)}`, { question }).catch(() => null) : null,
+    ]);
+    if (attack && attack.status === "blocked") data.blocked.push(attack);
+
+    // Light the real results up one check at a time.
+    const byAgent = new Map();
+    for (const [kind, list] of [["verified", data.sources], ["refused", data.refused], ["blocked", data.blocked], ["unreachable", data.unreachable], ["skipped", data.skipped]])
+      list.forEach((r) => byAgent.set(r.agent, { kind, r }));
+    const order = [...state.agents.map((a) => a.id).filter((id) => byAgent.has(id)), ...[...byAgent.keys()].filter((id) => !state.agents.some((a) => a.id === id))];
+    body.querySelector(".g").innerHTML = order.map((id) => resultCard(byAgent.get(id).kind, byAgent.get(id).r)).join("");
+    const cards = [...body.querySelectorAll(".g .card")];
+    const steps = Math.max(0, ...cards.map((c) => c.querySelectorAll("li").length));
+    for (let i = 0; i < steps; i++) {
+      await wait(200);
+      cards.forEach((c) => { const li = c.querySelectorAll("li")[i]; if (li) li.classList.add(li.dataset.s); });
+    }
+    cards.forEach((c) => { const st = c.querySelector(".st"); st.innerHTML = st.dataset.chip; });
+    if (data.blocked.length) pulse(true, 2600);
+    await wait(500);
+
+    state.msgs.set(botEl, { question: data.question, brands: [...new Set([...data.sources, ...data.refused].map((s) => s.brand))] });
+    const texts = data.sources.flatMap((s) => (s.answers || []).map((a) => a.text || ""));
+    if (texts.length) state.sawAnswers = true;
+    if (texts.some((t) => t.includes("[PLACEHOLDER"))) state.sawPlaceholder = true;
+    body.innerHTML = answerHtml(data);
+    botEl.scrollIntoView({ block: "start", behavior: "smooth" });
+  } catch (err) {
+    if (/patient identifiers/i.test(err.message)) userEl.querySelector(".bubble").textContent = "Message withheld: it looked like it contained patient identifiers.";
+    body.innerHTML = `<div class="note err" style="margin-top:0">${esc(err.message)}</div>`;
+    scrollDown();
+  }
+  setBusy(false);
+  if ($("#panel").hidden) $("#q").focus();
+  refreshLog();
+}
+
+// composer
+const q = $("#q");
+q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 140) + "px"; });
+q.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#composer").requestSubmit(); }
+});
+$("#composer").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = q.value;
+  if (!text.trim() || state.busy) return;
+  q.value = ""; q.style.height = "auto";
+  ask(text);
+});
+$("#newChat").onclick = newChat;
+
+// delegated clicks inside the thread: suggestion chips, fold toggle, handoff drafts
+thread.addEventListener("click", async (e) => {
+  const sug = e.target.closest("#ex button[data-q]");
+  if (sug) { ask(sug.dataset.q); return; }
+
+  const more = e.target.closest(".more");
+  if (more) {
+    const open = more.previousElementSibling.classList.toggle("clamp") === false;
+    more.textContent = open ? "Fold passage" : "Show full passage";
+    return;
+  }
+
+  // Drafts a note to the manufacturers' medical information teams. Nothing is sent.
+  const btn = e.target.closest("button[data-t]");
+  if (!btn) return;
+  const ctx = state.msgs.get(btn.closest(".msg"));
+  if (!ctx) return;
+  const box = btn.closest(".note").querySelector(".draft");
+  btn.disabled = true; btn.textContent = "Drafting…";
+  try {
+    const r = await send("POST", "/handoff", { question: ctx.question, topics: [btn.dataset.t], brands: ctx.brands });
+    btn.textContent = "Draft ready (not sent)";
+    box.innerHTML = `<div class="hid">${esc(r.draft)}</div>`;
+  } catch (err) {
+    btn.disabled = false; btn.textContent = "Draft handoff note";
+    box.innerHTML = `<div class="note err">${esc(err.message)}</div>`;
+  }
+  refreshLog();
+});
+
+// ---------- slide-over panels ----------
+const PANEL_TITLES = { sources: "Sources", rules: "Rules", activity: "Activity", status: "What's live and what's simulated" };
+let lastFocus = null;
+function openPanel(name) {
+  lastFocus = document.activeElement;
+  document.querySelectorAll("#panel section").forEach((s) => { s.hidden = s.id !== "p-" + name; });
+  $("#panelTitle").textContent = PANEL_TITLES[name];
+  $("#scrim").hidden = false; $("#panel").hidden = false;
+  $("#panelClose").focus();
+  if (name === "sources") loadAgents();
+  if (name === "rules") loadConsent();
+  if (name === "activity") refreshLog();
+  if (name === "status") renderTransparency();
+}
+function closePanel() {
+  $("#scrim").hidden = true; $("#panel").hidden = true;
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+document.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click", () => openPanel(b.dataset.panel)));
+$("#panelClose").onclick = closePanel;
+$("#scrim").onclick = closePanel;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#panel").hidden) closePanel(); });
+
+// ---------- status, sources, rules, activity ----------
 async function loadHealth() {
   try { state.health = await api("/health"); state.online = true; }
   catch { state.health = null; state.online = false; }
-  $("#kick").classList.toggle("off", !state.online);
-  $("#modeText").textContent = state.online ? `Demo mode · verification ${state.health.verification}` : "Assistant offline";
+  $("#statusBtn").classList.toggle("off", !state.online);
+  const v = state.health?.verification;
+  $("#modeText").textContent = state.online ? `${v.charAt(0).toUpperCase() + v.slice(1)} verification` : "Assistant offline";
   renderTransparency();
 }
 
 async function loadAgents() {
   try { state.agents = (await api("/agents")).filter((a) => a.role !== "attacker"); state.online = true; }
-  catch (err) { state.agents = []; $("#agents").innerHTML = `<div class="note err">${esc(err.message)}</div>`; return; }
+  catch (err) { state.agents = []; $("#agents").innerHTML = `<div class="note err" style="margin-top:0">${esc(err.message)}</div>`; return; }
   $("#agents").innerHTML = state.agents.length ? state.agents.map((a) => {
     const v = a.verification;
     return `<div class="card"><h4>${esc(a.brand)} label agent</h4><div class="mono">${esc(a.ansName)}</div>
@@ -148,7 +354,7 @@ $("#save").onclick = async () => {
   const btn = $("#save"); btn.disabled = true;
   try {
     state.rules = await send("PUT", "/rules", body);
-    msg.textContent = "Saved. Allowed brands apply to your next consult. Quiet hours are stored, but not enforced yet.";
+    msg.textContent = "Saved. Allowed brands apply to your next question. Quiet hours are stored, but not enforced yet.";
   } catch (err) { msg.textContent = err.message; }
   btn.disabled = false;
   refreshLog();
@@ -164,8 +370,6 @@ function renderJournal() {
   $("#nv").textContent = n((e) => e.event === "answer");
   $("#nb").textContent = n((e) => BLOCK_EVENTS.has(e.event));
   $("#nq").textContent = n((e) => e.event === "ask");
-  const last = log[log.length - 1];
-  $("#last").textContent = last ? `Last: ${EVENT_LABELS[last.event] || last.event}` : "Waiting for the first consult.";
   const rows = log.slice(-journalLimit).reverse().map((e) => {
     const detail = e.event === "rules_changed" ? "Allowed brands, hours and switches were saved." : e.detail;
     return `<div><b>${esc(EVENT_LABELS[e.event] || e.event)}</b>${esc(detail)}<br><span>${esc(String(e.time || "").slice(11, 19))} UTC${e.result ? " · " + esc(e.result) : ""}</span></div>`;
@@ -173,7 +377,7 @@ function renderJournal() {
   const older = log.length - journalLimit;
   $("#tl").innerHTML = log.length
     ? rows + (older > 0 ? `<button type="button" class="btn ghost" data-more style="margin:4px 0 12px">Show older events (${older} more)</button>` : "")
-    : '<div class="empty">Nothing yet. Start a consult or test the immunity lab.</div>';
+    : '<div class="empty">Nothing yet. Ask a question to start the record.</div>';
 }
 $("#tl").addEventListener("click", (e) => {
   if (e.target.closest("[data-more]")) { journalLimit += 40; renderJournal(); }
@@ -184,170 +388,20 @@ $("#dl").onclick = async () => {
   const report = { generated: new Date().toISOString(), verificationMode: state.health?.verification, signingMode: state.health?.signing, rules: state.rules, events: state.log };
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
-  a.download = "scriptsync-journal.json";
+  a.download = "scriptsync-report.json";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
-// ---------- consult ----------
-function pendingCard(a) {
-  return `<div class="card"><h4>${esc(a.brand)} label agent</h4><ul class="ck">${CK.map((c) => `<li>${c[1]}</li>`).join("")}</ul><div><span class="chip">Contacting…</span></div></div>`;
-}
-
-// One card per agent, in config order. Rows are neutral until reveal() lights them.
-function resultCard(kind, r) {
-  const v = r.verification;
-  const chip = {
-    verified: `<span class="chip ok">Healthy · verified (${esc(v?.mode || "simulated")})</span>`,
-    refused: '<span class="chip ok">Verified · declined to answer</span>',
-    blocked: '<span class="chip bad">Flatline · blocked</span>',
-    unreachable: '<span class="chip">Verified · did not respond</span>',
-    skipped: '<span class="chip">Skipped · not on your consent list</span>',
-  }[kind];
-  const rows = kind === "skipped" ? "" : `<ul class="ck">${checkRows(v, r.failedChecks || [], true)}</ul>`;
-  const why = kind === "blocked" ? `<p class="mono" style="margin-top:8px">${esc(r.reason)}</p>` : "";
-  return `<div class="card"><h4>${esc(r.brand)} label agent</h4>${rows}<div class="st" data-chip="${esc(chip)}"></div>${why}</div>`;
-}
-
-async function consult() {
-  const q = $("#q").value.trim();
-  if (!q) return;
-  const btn = $("#go");
-  btn.disabled = true; btn.textContent = "Checking vitals…";
-  pulse(false);
-  const allowed = state.rules?.allowedBrands;
-  $("#prog").innerHTML = (state.agents.length ? state.agents.filter((a) => !allowed || allowed.includes(a.brand)) : [{ brand: "Assistant" }]).map(pendingCard).join("");
-  try {
-    const data = await send("POST", "/ask", { question: q });
-    const byAgent = new Map();
-    for (const [kind, list] of [["verified", data.sources], ["refused", data.refused], ["blocked", data.blocked], ["unreachable", data.unreachable], ["skipped", data.skipped]])
-      list.forEach((r) => byAgent.set(r.agent, { kind, r }));
-    const order = [...state.agents.map((a) => a.id).filter((id) => byAgent.has(id)), ...[...byAgent.keys()].filter((id) => !state.agents.some((a) => a.id === id))];
-    $("#prog").innerHTML = order.map((id) => resultCard(byAgent.get(id).kind, byAgent.get(id).r)).join("");
-    // Light the real results up one check at a time.
-    const cards = [...document.querySelectorAll("#prog .card")];
-    const steps = Math.max(0, ...cards.map((c) => c.querySelectorAll("li").length));
-    for (let i = 0; i < steps; i++) {
-      await wait(260);
-      cards.forEach((c) => { const li = c.querySelectorAll("li")[i]; if (li) li.classList.add(li.dataset.s); });
-    }
-    cards.forEach((c) => { const st = c.querySelector(".st"); st.innerHTML = st.dataset.chip; });
-    if (data.blocked.length) pulse(true, 2600);
-    await wait(700);
-    renderChart(data);
-    show("chart");
-  } catch (err) {
-    $("#prog").innerHTML = `<div class="note err" style="grid-column:1/-1">${esc(err.message)}</div>`;
-  }
-  btn.disabled = false; btn.textContent = "Check vitals";
-  refreshLog();
-}
-$("#go").onclick = consult;
-$("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") consult(); });
-$("#ex").addEventListener("click", (e) => {
-  const b = e.target.closest("button[data-q]");
-  if (b) { $("#q").value = b.dataset.q; consult(); }
-});
-
-// ---------- chart ----------
-function passageCard(a) {
-  const meta = [`<b>Section ${esc(a.section)}</b>`, a.title && esc(a.title), a.labelVersion && esc(a.labelVersion), a.labelDate && esc(a.labelDate)].filter(Boolean).join(" · ");
-  const cut = a.source?.truncated ? '<span class="chip">excerpt (cut short)</span>' : "";
-  const long = String(a.text || "").length > 450;   // long passages start folded, with a visible toggle
-  return `<div class="card"><div class="passage-meta">${meta}</div><blockquote${long ? ' class="clamp"' : ""}>${esc(a.text)}</blockquote>${long ? '<button type="button" class="more">Show full passage</button><br>' : ""}${(a.tags || []).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}${cut}</div>`;
-}
-
-$("#cards").addEventListener("click", (e) => {
-  const b = e.target.closest(".more");
-  if (!b) return;
-  const open = b.previousElementSibling.classList.toggle("clamp") === false;
-  b.textContent = open ? "Fold passage" : "Show full passage";
-});
-
-function sourceColumn(s) {
-  return `<div class="src"><div class="srchead"><h4>${esc(s.brand)} label agent</h4>
-    <span class="chip ok">✓ Verified (${esc(s.verification?.mode || "simulated")})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>
-    <div class="mono">${esc(s.ansName)} · signed ${esc(s.timestamp || "?")}</div></div>${(s.answers || []).map(passageCard).join("")}</div>`;
-}
-
-function readLine(an) {
-  const bits = [
-    ...(an?.drugsMentioned || []).map((d) => `<span class="chip v">drug · ${esc(d.drug)}</span>`),
-    ...(an?.topics || []).map((t) => `<span class="chip">topic · ${esc(t)}</span>`),
-  ];
-  return bits.length ? `<div class="readline">Read your question as:${bits.join("")}</div>` : "";
-}
-
-function renderChart(d) {
-  const brands = [...new Set([...d.sources, ...d.refused].map((s) => s.brand))];
-  state.last = { question: d.question, brands };
-  const texts = d.sources.flatMap((s) => (s.answers || []).map((a) => a.text || ""));
-  if (texts.length) state.sawAnswers = true;
-  if (texts.some((t) => t.includes("[PLACEHOLDER"))) state.sawPlaceholder = true;
-  renderTransparency();
-
-  $("#cq").textContent = "Question: " + d.question;
-  $("#anote").innerHTML = (d.notices || []).map((n) => `<div class="note adv">${esc(n.message)}</div>`).join("") + readLine(d.analysis);
-  $("#cards").innerHTML = d.sources.length ? d.sources.map(sourceColumn).join("")
-    : '<div class="empty">No verified source had a passage for this question, so nothing is shown. ScriptSync does not guess.</div>';
-
-  $("#notes").innerHTML =
-    d.overlaps.map((o) => `<div class="note ov"><b>Possible overlap · ${esc(o.tag)}</b><br>${esc(o.note)}<div>${o.statements.map((s) => `<span class="chip v">${esc(s.source)} · §${esc(s.section)}</span>`).join("")}</div></div>`).join("")
-    + d.gaps.map((g) => `<div class="note gap">${esc(g.message)}${String(g.topic).startsWith("drug:") ? "" : `<button data-t="${esc(g.topic)}">Draft handoff note</button>`}<div class="draft"></div></div>`).join("");
-
-  $("#others").innerHTML =
-    d.refused.map((r) => `<div class="note gap">${esc(r.brand)} label agent is verified but declined: ${esc(r.reason)}</div>`).join("")
-    + d.blocked.map((b) => alertCard(`${b.brand} label agent`, b)).join("")
-    + d.unreachable.map((u) => `<div class="note err">${esc(u.brand)} label agent did not respond. ${esc(u.reason)}</div>`).join("")
-    + d.skipped.map((k) => `<div class="mono" style="margin-top:10px">${esc(k.brand)} skipped: ${esc(k.reason)}</div>`).join("");
-
-  $("#disc").textContent = d.disclaimer || "Cross-references are for clinician review. Not medical advice.";
-}
-
-// Drafts a note to the manufacturers' medical information teams. Nothing is sent.
-$("#notes").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-t]");
-  if (!btn || !state.last) return;
-  const box = btn.closest(".note").querySelector(".draft");
-  btn.disabled = true; btn.textContent = "Drafting…";
-  try {
-    const r = await send("POST", "/handoff", { question: state.last.question, topics: [btn.dataset.t], brands: state.last.brands });
-    btn.textContent = "Draft ready (not sent)";
-    box.innerHTML = `<div class="hid">${esc(r.draft)}</div>`;
-  } catch (err) {
-    btn.disabled = false; btn.textContent = "Draft handoff note";
-    box.innerHTML = `<div class="note err">${esc(err.message)}</div>`;
-  }
-  refreshLog();
-});
-
-// ---------- immunity lab ----------
-$("#atk").innerHTML = ATTACKS.map(([k, l]) => `<button class="atk" data-k="${k}">${l}</button>`).join("");
-$("#atk").onclick = async (e) => {
-  const b = e.target.closest("[data-k]");
-  if (!b) return;
-  const title = ATTACKS.find((a) => a[0] === b.dataset.k)[1];
-  b.disabled = true;
-  $("#out").innerHTML = '<div class="empty">Sending impostor…</div>';
-  try {
-    const r = await send("POST", `/attack/${encodeURIComponent(b.dataset.k)}`, {});
-    $("#out").innerHTML = alertCard(title, r);
-    if (r.status === "blocked") pulse(true, 2600);
-  } catch (err) { $("#out").innerHTML = `<div class="note err">${esc(err.message)}</div>`; }
-  b.disabled = false;
-  refreshLog();
-};
-
-// ---------- transparency ----------
 function renderTransparency() {
   const h = state.health, on = state.online;
   const label = state.sawPlaceholder ? ["bad", "Placeholder"] : state.sawAnswers ? ["ok", "Cached snapshot"] : ["", "Not seen yet"];
   const ver = h?.verification || "simulated";
   const rows = [
-    ["This page", "Reads the assistant service running on this machine", on ? ["ok", "Live · local"] : ["bad", "Assistant offline"]],
+    ["The assistant", "Runs on this machine; this page reads it live", on ? ["ok", "Live · local"] : ["bad", "Offline"]],
     ["ANS identity checks", "Read from a config file. A live DNS check exists but is not wired into the assistant yet", !on || ver === "simulated" ? ["bad", "Simulated"] : ["ok", ver]],
     ["Signatures", "HMAC-SHA256 with a shared demo key", ["bad", "Demo key"]],
-    ["Label text", "Verbatim passages from public DailyMed / openFDA labels, saved ahead of time, with section and version", label],
+    ["Label text", "Verbatim passages from public DailyMed / openFDA labels, saved ahead of time, with section and version. Only a hand-picked set of passages is served, so \"Not covered\" means outside those passages", label],
     ["Overlap and gaps", "Tag matching, no language model", ["ok", "Deterministic"]],
     ["Contact rules", "Allowed brands are enforced. Quiet hours and urgent-alert rules are stored but not enforced yet", ["bad", "Partly built"]],
     ["Patient data", "Questions that look like patient identifiers are refused and never logged", ["ok", "Guarded"]],
@@ -355,11 +409,62 @@ function renderTransparency() {
   $("#clear").innerHTML = rows.map(([t, d, [cls, txt]]) => `<div class="line"><div>${esc(t)}<small>${esc(d)}</small></div><span class="chip ${cls}">${esc(txt)}</span></div>`).join("");
 }
 
+// ---------- demo guide (presenter only; not part of the product) ----------
+const STEPS = [
+  { title: "Interaction question", note: "Two verified answers, quoted word for word, plus a Possible overlap.", q: "Can simvastatin be taken with clarithromycin?" },
+  { title: "A gap", note: "Both agents verify but decline, so it says Not covered. That means outside the passages they serve, not that the label is silent.", q: "What does it say about pregnancy?" },
+  { title: "Switching drugs", note: "Advice-seeking notice, plus Not covered for switching and for the drug with no agent.", q: "Should I switch from simvastatin to atorvastatin?" },
+  { title: "An impostor arrives", note: "Pick one. It answers alongside the real agents and is blocked before any text shows.", impostors: true },
+  { title: "Rules", note: "Turn a brand off and save, then ask again: it is skipped.", panel: "rules" },
+  { title: "Activity and report", note: "The audit log, counters and JSON export. Question text is never stored.", panel: "activity" },
+  { title: "Patient details refused", note: "A date of birth is refused, the message is withheld, and nothing is logged.", q: "Patient DOB 01/01/1970 is on simvastatin. What interacts?" },
+  { title: "What's simulated", note: "Say it out loud: simulated verification, demo signing key.", panel: "status" },
+];
+
+function markDone(i) { $(`#stepn-${i}`)?.closest(".step, .step-static")?.classList.add("done"); }
+
+function renderSteps() {
+  $("#steps").innerHTML = STEPS.map((s, i) => {
+    const head = `<span class="n" id="stepn-${i}">${i + 1}</span>`;
+    if (s.impostors) {
+      return `<li><div class="step-static">${head}<div style="flex:1"><b style="font-size:14px">${esc(s.title)}</b><small style="display:block;color:var(--mut);font-size:12px;line-height:1.4">${esc(s.note)}</small>
+        <div class="imps">${ATTACKS.map(([k, l]) => `<button type="button" data-imp="${k}">${esc(l)}</button>`).join("")}</div></div></div></li>`;
+    }
+    return `<li><button type="button" class="step" data-step="${i}">${head}<span><b>${esc(s.title)}</b><small>${esc(s.note)}</small></span></button></li>`;
+  }).join("");
+}
+
+$("#steps").addEventListener("click", (e) => {
+  const imp = e.target.closest("[data-imp]");
+  if (imp) {
+    if (state.busy) return;
+    ask(state.lastQuestion || DEFAULT_Q, { impostor: imp.dataset.imp });
+    markDone(STEPS.findIndex((s) => s.impostors));
+    return;
+  }
+  const b = e.target.closest("[data-step]");
+  if (!b) return;
+  const i = Number(b.dataset.step), s = STEPS[i];
+  if (s.q) { if (state.busy) return; ask(s.q); } else openPanel(s.panel);
+  markDone(i);
+});
+
+function setDemo(on) {
+  document.body.classList.toggle("demo-on", on);
+  $("#demo").hidden = !on;
+  $("#demoToggle").setAttribute("aria-pressed", String(on));
+}
+$("#demoToggle").onclick = () => setDemo(true);
+$("#demoClose").onclick = () => setDemo(false);
+if (new URLSearchParams(location.search).get("demo") === "1") setDemo(true);
+
 // ---------- start ----------
 async function init() {
-  show("consult");
+  thread.innerHTML = EMPTY;
+  renderSteps();
   renderTransparency();
   renderJournal();
+  q.focus();
   await Promise.all([loadHealth(), refreshLog(), loadAgents().then(loadConsent)]);
 }
 init();

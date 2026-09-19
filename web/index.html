@@ -3,122 +3,79 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ScriptSync Pulse – Vital signs for drug information</title>
+<title>ScriptSync Pulse – Drug answers you can verify</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 20'%3E%3Cpath d='M1 10h5l3-8 5 16 3-8h8' fill='none' stroke='%23ff6f91' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="lg"><stop offset="0" stop-color="#ffb38a"/><stop offset="1" stop-color="#8b7bff"/></linearGradient></defs></svg>
-<header class="nav"><div>
-  <a class="logo" href="#top"><svg viewBox="0 0 26 20" aria-hidden="true"><path d="M1 10h5l3-8 5 16 3-8h8" fill="none" stroke="url(#lg)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>ScriptSync <span class="gt">Pulse</span></a>
-  <ul><li><a href="#beats">Your consult</a></li><li><a href="#dash">Dashboard</a></li><li><a href="#vitals">Vitals</a></li><li><a href="#faq">FAQ</a></li></ul>
-  <a class="btn" href="#dash">Open dashboard</a>
-</div></header>
 
-<main id="top">
-<div class="wrap hero">
-  <span class="kick" id="kick"><b>●</b> <span id="modeText">Demo mode · verification simulated</span></span>
-  <h1>Take the <span class="gt">pulse</span> of every drug answer.</h1>
-  <p>Before an answer reaches you, ScriptSync checks the sender's vital signs. Healthy sources get quoted word for word. Fakes flatline and never make it through.</p>
-  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap"><a class="btn" href="#dash">Open the dashboard</a><a class="btn ghost" href="#beats">See how it works</a></div>
-  <svg class="ecg" viewBox="0 0 760 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0 35H150l14-4 12 4h40l10-26 16 56 12-30h60l14-4 12 4h90l10-26 16 56 12-30H560l14-4 12 4h60l10-26 16 56 12-30H760"/></svg>
+<div class="app" id="app">
+  <header class="bar">
+    <a class="logo" href="./"><svg viewBox="0 0 26 20" aria-hidden="true"><path d="M1 10h5l3-8 5 16 3-8h8" fill="none" stroke="url(#lg)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>ScriptSync <span class="gt">Pulse</span></a>
+    <svg class="ecg" id="ecg" viewBox="0 0 220 54" preserveAspectRatio="none" aria-hidden="true"><path id="ep" d="M0 27H50l6-3 5 3h14l5-20 8 42 5-22h34l6-3 5 3h20l5-20 8 42 5-22h20"/></svg>
+    <nav class="tools" aria-label="Tools">
+      <button type="button" class="tool" data-panel="sources">Sources</button>
+      <button type="button" class="tool" data-panel="rules">Rules</button>
+      <button type="button" class="tool" data-panel="activity">Activity</button>
+      <button type="button" class="tool" id="newChat">New chat</button>
+    </nav>
+    <button type="button" class="status" id="statusBtn" data-panel="status"><b>●</b> <span id="modeText">Simulated verification</span></button>
+  </header>
 
-  <div class="bento" aria-label="Product overview">
-    <div class="tile w2"><h3>Every source, checked</h3><p>Domain record, key, public log and revocation status, all before display.</p><span class="chip ok">✓ Verified (simulated)</span><span class="chip v">signed · demo key</span>
-      <div class="q">A verbatim label passage appears here, with its section and label version.</div></div>
-    <div class="tile"><h3>Fakes flatline</h3><p>Lookalike domain. Text hidden.</p><span class="chip bad">✕ Blocked</span><div class="q">Show what it tried to say</div></div>
-    <div class="tile"><h3>Your consent</h3><div class="tog"><span>Simvastatin</span><span class="tg"></span></div><div class="tog"><span>Clarithromycin</span><span class="tg off"></span></div><div class="tog"><span>Verified only</span><span class="tg"></span></div></div>
-  </div>
+  <main class="chat">
+    <div class="thread" id="thread" aria-live="polite"></div>
+    <form class="composer" id="composer" autocomplete="off">
+      <div class="inputrow">
+        <textarea id="q" rows="1" placeholder="Ask about a drug or interaction…" aria-label="Your question"></textarea>
+        <button class="btn" id="go" type="submit">Send</button>
+      </div>
+      <p class="fine">Answers are verbatim public label quotes, not medical advice. Please don't include patient details. Each question is answered on its own.</p>
+    </form>
+  </main>
 </div>
 
-<div class="rib"><div class="wrap"><span><b>Simulated:</b> ANS verification</span><span><b>Demo key:</b> HMAC signing</span><span>Demo agents, not operated by manufacturers</span><span>No patient data · Not medical advice</span></div></div>
-
-<section id="beats"><div class="wrap beats">
-  <div><span class="tagl gt">Your consult</span><h2>Four beats from question to answer.</h2><p class="sub">Every lookup follows the same rhythm, and any missed beat stops it cold.</p></div>
-  <ol>
-    <li><h3>Listen</h3><p>Your assistant discovers each brand's agent from a simple list. Adding one needs no code change.</p></li>
-    <li><h3>Check vitals</h3><p>Each agent proves its identity. Lookalike, expired, replayed and revoked senders fail here.</p></li>
-    <li><h3>Chart it</h3><p>Verified quotes land side by side with section, version and date, plus overlap and "not covered" notes for your review.</p></li>
-    <li><h3>Journal it</h3><p>Every event is written to a journal you can export for compliance.</p></li></ol>
-</div></section>
-
-<section id="dash" style="padding-top:20px"><div class="wrap">
-  <span class="tagl gt">Live dashboard</span><h2>Your trust dashboard, in the browser.</h2>
-  <p class="sub">Talks to the assistant service running on this machine. Questions that look like they contain patient identifiers are refused and never logged.</p>
-  <div class="dash">
-    <nav class="rail" id="rail" aria-label="Dashboard sections"></nav>
-    <div class="main">
-
-      <div class="view" id="v-today"><h3>Today</h3><p class="hint">Who's on your care team of sources.</p><div class="g" id="agents"></div>
-        <p class="disc">Demo mode: ANS identity checks are simulated, signing uses a demo key, and agents are ours, not the manufacturers'.</p></div>
-
-      <div class="view" id="v-consult"><h3>Consult</h3><p class="hint">Ask a drug question. Every allowed agent answers from its own label only.</p>
-        <div class="row"><input type="text" id="q" value="Can simvastatin be taken with clarithromycin?" aria-label="Drug question" autocomplete="off"><button class="btn" id="go">Check vitals</button></div>
-        <div class="ex" id="ex">Try:
-          <button type="button" data-q="What do I need to know about CYP3A interactions?">CYP3A interactions</button>
-          <button type="button" data-q="Is there anything on kidney dosing?">Kidney dosing</button>
-          <button type="button" data-q="Should I switch from simvastatin to atorvastatin?">Switching drugs</button>
-        </div>
-        <div class="g" id="prog" style="margin-top:20px" aria-live="polite"></div>
-        <p class="disc">Answers are verbatim public label quotes. ScriptSync never recommends a drug, dose, or treatment. Please don't type patient details.</p></div>
-
-      <div class="view" id="v-chart"><h3>Chart</h3><p class="hint" id="cq">Verified quotes appear here.</p>
-        <div id="anote"></div>
-        <div class="srcs" id="cards"><div class="empty">Nothing charted yet. Start a consult.</div></div>
-        <div id="notes"></div><div id="others"></div>
-        <p class="disc" id="disc">Cross-references are for clinician review. Not medical advice.</p></div>
-
-      <div class="view" id="v-immune"><h3>Immunity lab</h3><p class="hint">Impostors pose as our demo agents. Expose the system to one and watch it react.</p><div class="atks" id="atk"></div><div id="out" aria-live="polite"></div></div>
-
-      <div class="view" id="v-consent"><h3>Consent</h3><p class="hint">Choose who can reach you, and when.</p>
-        <div class="two"><div class="card" id="rl"></div>
-        <div class="card"><div class="line"><span>Hold routine messages from</span><input type="time" id="qs" value="08:00" aria-label="Hold from"></div><div class="line"><span>Until</span><input type="time" id="qe" value="17:00" aria-label="Hold until"></div>
-          <div class="line"><span>Hold routine messages in this window<small>Urgent safety alerts still come through</small></span><input type="checkbox" class="sw" id="hold" aria-label="Hold routine messages"></div>
-          <button class="btn" id="save" style="margin-top:12px">Save consent</button><p class="mono" id="savemsg" style="margin-top:10px" aria-live="polite"></p></div></div></div>
-
-      <div class="view" id="v-journal"><h3>Journal</h3><p class="hint">A running record for your compliance report. Question text is never stored.</p><div class="jr" id="tl"></div><button class="btn ghost" id="dl" style="margin-top:8px">Export report (JSON)</button></div>
-
-      <div class="view" id="v-clear"><h3>Transparency</h3><p class="hint">What is live, cached, or simulated here.</p>
-        <div class="card" id="clear"></div></div>
-    </div>
-    <aside class="side">
-      <h4>Trust pulse</h4>
-      <svg class="ecg" id="ecg" viewBox="0 0 220 54" preserveAspectRatio="none" aria-hidden="true"><path id="ep" d="M0 27H50l6-3 5 3h14l5-20 8 42 5-22h34l6-3 5 3h20l5-20 8 42 5-22h20"/></svg>
-      <div class="vit"><span>Verified answers</span><b id="nv">0</b></div><div class="vit"><span>Blocked</span><b id="nb">0</b></div><div class="vit"><span>Consults</span><b id="nq">0</b></div>
-      <p class="last" id="last">Waiting for the first consult.</p>
-    </aside>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" hidden role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+  <div class="panelhead"><h2 id="panelTitle"></h2><button type="button" class="x" id="panelClose" aria-label="Close">✕</button></div>
+  <div class="panelbody">
+    <section id="p-sources" hidden>
+      <p class="hint">The label agents your assistant talks to. Each one is checked on every question.</p>
+      <div class="g1" id="agents"></div>
+      <p class="disc">Demo agents serving public label text. They are not operated by the manufacturers.</p>
+    </section>
+    <section id="p-rules" hidden>
+      <p class="hint">Choose who can reach you, and when.</p>
+      <div class="card" id="rl"></div>
+      <div class="card" style="margin-top:12px">
+        <div class="line"><span>Hold routine messages from</span><input type="time" id="qs" value="08:00" aria-label="Hold from"></div>
+        <div class="line"><span>Until</span><input type="time" id="qe" value="17:00" aria-label="Hold until"></div>
+        <div class="line"><span>Hold routine messages in this window<small>Urgent safety alerts still come through</small></span><input type="checkbox" class="sw" id="hold" aria-label="Hold routine messages"></div>
+        <button type="button" class="btn" id="save" style="margin-top:12px">Save rules</button>
+        <p class="mono" id="savemsg" style="margin-top:10px" aria-live="polite"></p>
+      </div>
+    </section>
+    <section id="p-activity" hidden>
+      <div class="stats"><div class="stat"><b id="nv">0</b><span>Verified answers</span></div><div class="stat"><b id="nb">0</b><span>Blocked</span></div><div class="stat"><b id="nq">0</b><span>Questions</span></div></div>
+      <p class="hint">A running record for your compliance report. Question text is never stored.</p>
+      <div class="jr" id="tl"></div>
+      <button type="button" class="btn ghost" id="dl" style="margin-top:8px">Export report (JSON)</button>
+    </section>
+    <section id="p-status" hidden>
+      <p class="hint">What is live, cached, or simulated in this build.</p>
+      <div class="card" id="clear"></div>
+    </section>
   </div>
-</div></section>
+</aside>
 
-<section id="vitals" style="padding-top:20px"><div class="wrap">
-  <span class="tagl gt">Trust vitals</span><h2>Four readings before a word appears.</h2>
-  <div class="vitals">
-    <div><b class="gt">DNS</b><h3>Domain record</h3><p>Public key published in the domain's DNS.</p></div>
-    <div><b class="gt">KEY</b><h3>Certificate / key</h3><p>The agent signs a fresh challenge.</p></div>
-    <div><b class="gt">LOG</b><h3>Public log</h3><p>Identity appears in a transparency log.</p></div>
-    <div><b class="gt">NOW</b><h3>Still current</h3><p>Not expired, not revoked, message under 24 hours old.</p></div>
-  </div>
-  <p class="disc" style="margin-top:18px">In this build the four readings are simulated from a config file, and the live DNS check is not wired into the assistant yet. Once it is, ScriptSync will fail closed and show nothing if verification is unavailable.</p>
-</div></section>
-
-<section id="faq" style="padding-top:20px"><div class="wrap">
-  <span class="tagl gt">FAQ</span><h2>Straight answers.</h2>
-  <div class="faq">
-    <details><summary>Does it tell me what to prescribe?</summary><p>No. It never recommends a drug, dose, or treatment. Overlap notes are cross-references for clinician review.</p></details>
-    <details><summary>Are these real manufacturer agents?</summary><p>No. They are our demo agents serving public label text, and nothing here is operated by a manufacturer.</p></details>
-    <details><summary>Is the identity check real yet?</summary><p>Not yet. ANS verification is simulated in this demo, and signatures use a demo key.</p></details>
-    <details><summary>Does it handle patient data?</summary><p>No patient data or PHI is used anywhere. Questions that look like they contain patient identifiers are refused and never logged.</p></details>
-  </div>
-</div></section>
-
-<div class="wrap"><div class="cta">
-  <h2>Know who's talking.</h2>
-  <p>Signed sources, quoted text, and a journal of every event.</p>
-  <a class="btn" href="#dash">Back to the dashboard</a>
-</div></div>
-</main>
-<footer><div class="wrap">ScriptSync Pulse · VTHacks 14 · Demo agents serve public DailyMed label text and are not operated by the manufacturers. ANS verification is simulated; signatures use a demo HMAC key. Not medical advice.</div></footer>
+<aside class="demo" id="demo" hidden aria-label="Demo guide">
+  <div class="demohead"><div><span class="tagl">Presenter only</span><h2>Demo guide</h2></div><button type="button" class="x" id="demoClose" aria-label="Close demo guide">✕</button></div>
+  <p class="hint" style="margin-top:6px">Not part of the product. Work down the list; each step does the real thing.</p>
+  <ol class="steps" id="steps"></ol>
+  <p class="disc">Verification is simulated and signing uses a demo key, so say so out loud during the demo.</p>
+</aside>
+<button type="button" class="demo-toggle" id="demoToggle" aria-pressed="false">Demo</button>
 
 <script src="app.js"></script>
 </body>
