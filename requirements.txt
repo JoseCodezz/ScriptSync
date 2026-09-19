@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+httpx
+python-dotenv
+
+# brand agents (labels-brand-agent)
+anthropic>=1.0.0        # label-section selection
+cryptography>=43.0.0    # Ed25519 agent identity for ANS
+dnspython>=2.6.0        # DNS TXT anchor lookup
