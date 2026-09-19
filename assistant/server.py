@@ -58,7 +58,7 @@ def _blocked(agent, verification, reason, failed_ids, hidden, event):
 
 async def query_agent(agent: dict, question: str) -> dict:
     """Verify first, then ask, then check signature + freshness (Section 7.2)."""
-    v = is_agent_verified(agent["ansName"])
+    v = is_agent_verified(agent["ansName"], agent["endpoint"])
     failed = [c for c in v["checks"] if not c["pass"]]
     auditlog.log_event("verify", agent["ansName"], "pass" if v["ok"] else "fail",
                        "all four checks passed" if v["ok"] else "; ".join(c["message"] for c in failed), v)
@@ -182,7 +182,7 @@ def agents():
     out = []
     for a in load_agents():
         out.append({**_base(a), "role": a.get("role", "brand"), "endpoint": a["endpoint"],
-                    "verification": is_agent_verified(a["ansName"])})
+                    "verification": is_agent_verified(a["ansName"], a["endpoint"])})
     return out
 
 

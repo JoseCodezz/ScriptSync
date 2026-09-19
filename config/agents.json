@@ -65,7 +65,17 @@
       "brand": "Simvastatin",
       "drug": "simvastatin",
       "ansName": "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.health",
-      "endpoint": "http://127.0.0.1:9103"
+      "endpoint": "http://127.0.0.1:9103",
+      "identity_stub": {
+        "dns": {
+          "pass": true,
+          "message": "Domain record found"
+        },
+        "cert": {
+          "pass": true,
+          "message": "Signature valid - this is a genuine message being replayed"
+        }
+      }
     },
     {
       "id": "attack-revoked",
