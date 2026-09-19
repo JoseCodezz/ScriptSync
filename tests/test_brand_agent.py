@@ -134,8 +134,11 @@ def test_ans_identity() -> None:
     # SPKI DER is what ans-verify/src/crypto/agentKeys.ts emits and reads.
     check("public key is SPKI DER", identity.public_key_b64.startswith("MCowBQYDK2Vw"))
 
+    # Control the env var explicitly - the suite must behave identically whether
+    # or not ANS_DNS_VERIFY is already set in the caller's shell.
+    previous = os.environ.pop("ANS_DNS_VERIFY", None)
     anchored, _ = check_dns_anchor(name, identity.public_key_b64)
-    check("dns check off by default returns unknown, never a pass", anchored is None)
+    check("dns check off returns unknown, never a pass", anchored is None)
 
     os.environ["ANS_DNS_VERIFY"] = "1"
     anchored, detail = check_dns_anchor(name, identity.public_key_b64)
@@ -146,8 +149,11 @@ def test_ans_identity() -> None:
     if anchored:
         PASSED.append(f"DNS ANCHORED LIVE - {detail}")
     wrong, wrong_detail = check_dns_anchor(name, other.public_key_b64)
-    check("a key not in DNS never passes", wrong is not True, wrong_detail)
-    os.environ.pop("ANS_DNS_VERIFY")
+    check("a key the domain does not publish never passes", wrong is not True, wrong_detail)
+
+    os.environ.pop("ANS_DNS_VERIFY", None)
+    if previous is not None:
+        os.environ["ANS_DNS_VERIFY"] = previous
 
 
 async def test_service() -> None:

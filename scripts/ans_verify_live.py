@@ -38,13 +38,28 @@ from brand_agent.ans import (  # noqa: E402
 CHALLENGE_TTL_SECONDS = 120
 
 
-def lookup_key_via_dns(domain: str, agent: str) -> tuple[str | None, str]:
-    """Read the agent's public key from public DNS - registrar-agnostic."""
+def lookup_key_via_dns(
+    domain: str, agent: str, nameserver: str | None = None
+) -> tuple[str | None, str]:
+    """Read the agent's public key from public DNS - registrar-agnostic.
+
+    `nameserver` queries an authoritative server directly, bypassing recursive
+    resolver caches. Useful right after publishing a record: a failed lookup is
+    negatively cached for the zone's SOA minimum (1800s here), so public
+    resolvers keep returning NoAnswer for up to 30 minutes after the record is
+    actually live.
+    """
     import dns.resolver
 
     hostname = f"_agentid.{agent}.{domain}"
+    resolver = dns.resolver.Resolver()
+    if nameserver:
+        import socket
+
+        resolver.nameservers = [socket.gethostbyname(nameserver)]
+        resolver.cache = None
     try:
-        answers = dns.resolver.resolve(hostname, "TXT")
+        answers = resolver.resolve(hostname, "TXT")
     except Exception as exc:  # noqa: BLE001
         return None, f"{hostname}: {type(exc).__name__}"
     for record in answers:
@@ -61,6 +76,11 @@ def main() -> int:
     parser.add_argument("--agent", default=None, help="DNS label, e.g. simvastatin")
     parser.add_argument("--endpoint", default=None)
     parser.add_argument("--port", type=int, default=None)
+    parser.add_argument(
+        "--nameserver", default=None,
+        help="Query this nameserver directly, e.g. curitiba.ns.porkbun.com, to "
+             "bypass recursive-resolver negative caching right after publishing.",
+    )
     args = parser.parse_args()
 
     targets = (
@@ -96,10 +116,12 @@ def main() -> int:
         print(f"  agent signed       {proof['signature'][:24]}…")
 
         # 3. Key from DNS, not from the agent.
-        dns_key, where = lookup_key_via_dns(args.domain, agent)
+        dns_key, where = lookup_key_via_dns(args.domain, agent, args.nameserver)
         if not dns_key:
             print(f"  DNS LOOKUP FAILED  {where}")
-            print("  -> publish the TXT record (scripts/ans_records.py), then retry")
+            print("  -> record missing, or negatively cached by your resolver.")
+            print("     Retry with --nameserver curitiba.ns.porkbun.com to check")
+            print("     the authoritative server directly.")
             failures += 1
             continue
         print(f"  key from DNS       {dns_key[:24]}… ({where})")
