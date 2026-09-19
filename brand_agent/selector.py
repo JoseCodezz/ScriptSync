@@ -20,6 +20,12 @@ from pydantic import BaseModel, Field
 
 MODEL = os.environ.get("SCRIPTSYNC_MODEL", "claude-opus-5")
 
+# Picking sections from a short list is not a hard reasoning problem. Measured
+# on the demo question: default effort 6.2s, medium 3.4s with identical output,
+# low 2.4s but noisier (it pulled in a loosely related section). Medium keeps
+# the answer and halves the clinician's wait.
+EFFORT = os.environ.get("SCRIPTSYNC_EFFORT", "medium")
+
 
 def selection_mode() -> str:
     """Which path section selection will take, for startup logging and /health."""
@@ -130,6 +136,7 @@ async def select(
             ],
             messages=[{"role": "user", "content": content}],
             output_format=Selection,
+            output_config={"effort": EFFORT},
         )
         if response.stop_reason == "refusal":
             return Selection(refuse=True, reason="Request declined."), "model"
