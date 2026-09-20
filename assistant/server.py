@@ -10,6 +10,7 @@ from pathlib import Path
 import httpx
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -258,3 +259,11 @@ def handoff(req: HandoffRequest):
              "(Draft only - not sent. No patient information is included.)")
     auditlog.log_event("handoff_draft", "doctor", "drafted", what)
     return {"draft": draft}
+
+
+# ---------- the web UI ----------
+# Serving the page from the assistant puts the whole product on one URL (no CORS, no mixed-content
+# trouble when hosted). Mounted last so every API route above wins. SCRIPTSYNC_SERVE_WEB=0 turns it off.
+WEB_DIR = ROOT / "web"
+if WEB_DIR.is_dir() and os.environ.get("SCRIPTSYNC_SERVE_WEB", "1") != "0":
+    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
