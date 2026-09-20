@@ -26,7 +26,7 @@ from assistant import log as auditlog  # noqa: E402
 from assistant.merge import merge_results
 from assistant.understand import analyze, build_notices, drug_gaps, find_phi
 from assistant.verify import describe_verification, is_agent_verified
-from common import agents_config
+from common import agents_config, ans_registry
 from common.signing import SIGNING_MODE, check_freshness, verify_signature
 
 # Brand agents call a model to choose label sections, so responses take a few
@@ -205,12 +205,23 @@ def _visible_agents() -> list[dict]:
     return [a for a in load_agents() if DEMO_MODE or a.get("role") != "attacker"]
 
 
+async def _registry_for(agent: dict):
+    """The agent's public GoDaddy ANS registration, only if the team linked one. Informational; never affects trust."""
+    if not agent.get("ansHost"):
+        return None
+    return await asyncio.to_thread(ans_registry.lookup, agent["ansHost"])
+
+
 @app.get("/agents")
 async def agents():
     visible = _visible_agents()
-    verdicts = await asyncio.gather(*[asyncio.to_thread(is_agent_verified, a["ansName"], a["endpoint"]) for a in visible])
-    return [{**_base(a), "role": a.get("role", "brand"), "endpoint": a["endpoint"], "verification": v}
-            for a, v in zip(visible, verdicts)]
+    verdicts, registries = await asyncio.gather(
+        asyncio.gather(*[asyncio.to_thread(is_agent_verified, a["ansName"], a["endpoint"]) for a in visible]),
+        asyncio.gather(*[_registry_for(a) for a in visible]),
+    )
+    return [{**_base(a), "role": a.get("role", "brand"), "endpoint": a["endpoint"], "verification": v,
+             "ansRegistry": reg}
+            for a, v, reg in zip(visible, verdicts, registries)]
 
 
 @app.on_event("startup")
@@ -218,7 +229,8 @@ async def prewarm_verification():
     """Resolve DNS and challenge every agent now, so the first question is not the one that pays for it."""
     async def warm():
         await asyncio.gather(*[asyncio.to_thread(is_agent_verified, a["ansName"], a["endpoint"])
-                               for a in _visible_agents()], return_exceptions=True)
+                               for a in _visible_agents()],
+                             *[_registry_for(a) for a in _visible_agents()], return_exceptions=True)
     asyncio.create_task(warm())
 
 

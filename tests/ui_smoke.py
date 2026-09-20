@@ -161,6 +161,8 @@ with sync_playwright() as pw:
     page.click('[data-panel="sources"]')
     page.wait_for_selector("#agents .card")
     check("Sources panel: 2 real agents, no attackers", page.locator("#agents .card").count() == 2)
+    linked = any(a.get("ansRegistry") for a in api_get("/agents") if a["role"] != "attacker")
+    check("Sources panel mentions GoDaddy ANS only for agents the team linked", ("GoDaddy ANS" in page.inner_text("#agents")) == linked, linked)
     page.screenshot(path=f"{SP}/c05_sources.png")
     page.keyboard.press("Escape")
     check("Escape closes the panel", not page.locator("#panel").is_visible())

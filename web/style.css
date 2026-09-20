@@ -156,3 +156,10 @@ body.demo-on .demo-toggle{display:none}
 .secondary{margin-top:16px;border:1px dashed var(--line);border-radius:16px;padding:10px 14px}
 .secondary>summary{color:#b8adff;font-size:14px}
 .secondary[open]>summary{margin-bottom:6px}
+
+/* GoDaddy ANS registry entry (Sources panel) */
+a.chip{text-decoration:none}
+a.chip:hover{filter:brightness(1.15)}
+.regline{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.regline .mono{margin-top:6px}
+.reglink{display:inline-block;margin-top:6px;color:#b8adff;font-weight:700;font-size:13px;text-decoration:underline}
