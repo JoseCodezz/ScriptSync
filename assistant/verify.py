@@ -200,4 +200,3 @@ def is_agent_verified(name: str, endpoint: str | None = None) -> dict:
     return result
 
 
-isAgentVerified = is_agent_verified  # name used in the build document

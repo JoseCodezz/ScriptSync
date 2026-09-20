@@ -35,7 +35,6 @@ from brand_agent.ans import (  # noqa: E402
     verify_payload,
 )
 
-CHALLENGE_TTL_SECONDS = 120
 
 
 def lookup_key_via_dns(
