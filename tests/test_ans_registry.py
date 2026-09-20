@@ -121,7 +121,10 @@ class LinkingTests(unittest.TestCase):
         from assistant import server
         verified = {"name": "x", "ok": True, "mode": "live-dns", "checks": [], "warnings": []}
         reg = {"ok": True, "host": "agent.scriptsync.health", "registeredName": "scriptsync-brand-a"}
-        with patch.dict(os.environ, {"SCRIPTSYNC_ANS_HOST_SIMVASTATIN": "agent.scriptsync.health"}), \
+        # clear=True: importing brand_agent loads .env, so a real link there
+        # would leak in and this test would silently stop checking anything.
+        with patch.dict(os.environ, {"SCRIPTSYNC_ANS_HOST_SIMVASTATIN": "agent.scriptsync.health"},
+                        clear=True), \
                 patch.object(server, "is_agent_verified", return_value=verified), \
                 patch.object(ans_registry, "lookup", return_value=reg) as lookup:
             got = {a["drug"]: a for a in TestClient(server.app).get("/agents").json()}
