@@ -1,6 +1,10 @@
 // ScriptSync Pulse: a chat for the doctor's assistant. Talks to the assistant API (assistant/server.py).
 // Every string that comes from the API goes through esc() before it reaches innerHTML.
-const API = "http://127.0.0.1:8080";
+// Where the assistant lives. An explicit window.SCRIPTSYNC_API (web/config.js) wins. The local dev page
+// (served on :5500, or opened as a file) talks to the assistant on :8080. Anywhere else the assistant serves
+// this page itself, so the API is the same origin, which is what a hosted deployment needs.
+const API = window.SCRIPTSYNC_API
+  || (["5500", "5501"].includes(location.port) || location.protocol === "file:" ? "http://127.0.0.1:8080" : location.origin);
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

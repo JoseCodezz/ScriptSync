@@ -87,6 +87,14 @@ Gotchas:
 - On Windows the venv `python.exe` is a launcher; the process owning a port is its child.
 - Live verification takes a few seconds the first time (DNS over DoH); results are cached 120 s (15 s if failed) and pre-warmed at startup.
 
+## Deploying the website (one command)
+`python scripts/serve.py` runs everything in one process tree on one URL: the label agents (localhost only), the assistant, and the web UI (the assistant serves `web/` itself, so the page and API share an origin: no CORS, no mixed-content trouble).
+- **Local:** `python scripts/serve.py` -> http://127.0.0.1:8080. `SCRIPTSYNC_DEMO=1` also starts the impostors and the presenter tools. `--dry-run` prints what would start; `--no-agents` runs only the assistant + UI (agents hosted elsewhere).
+- **Hosting platform (Render / Railway / Fly / Heroku-style):** Build `pip install -r requirements.txt`, Start `python scripts/serve.py` (a `Procfile` and `.python-version` are included). The platform sets `PORT`; the script then binds `0.0.0.0`.
+- **Keys:** the agents' private keys are not in git. On a host, add each as a secret env var `ANS_KEY_<DRUG>_PEM_B64` (base64 of `keys/<drug>.ed25519`; PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("keys\simvastatin.ed25519"))`). Without them the agent generates a fresh identity that DNS does not publish and the identity checks fail. The host also needs outbound internet (DNS over HTTPS for the identity check).
+- **Web page hosted separately** (static host): publish the `web/` folder and set `window.SCRIPTSYNC_API` in `web/config.js` to the assistant's public HTTPS URL. Serving the page from the assistant is simpler and preferred.
+- `SCRIPTSYNC_SERVE_WEB=0` stops the assistant serving the page (API only).
+
 ## Demo and pitch plan
 Story: a doctor can't tell whether a message claiming to be from a manufacturer is real. About 3 minutes.
 1. **Problem (~20s):** drug information comes from many sources with no easy way to tell which are genuine. Impiricus angle: a next-generation HCP engagement tool that is not SMS.
