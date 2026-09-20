@@ -94,6 +94,8 @@ Gotchas:
 - **Keys:** the agents' private keys are not in git. On a host, add each as a secret env var `ANS_KEY_<DRUG>_PEM_B64` (base64 of `keys/<drug>.ed25519`; PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("keys\simvastatin.ed25519"))`). Without them the agent generates a fresh identity that DNS does not publish and the identity checks fail. The host also needs outbound internet (DNS over HTTPS for the identity check).
 - **Web page hosted separately** (static host): publish the `web/` folder and set `window.SCRIPTSYNC_API` in `web/config.js` to the assistant's public HTTPS URL. Serving the page from the assistant is simpler and preferred.
 - `SCRIPTSYNC_SERVE_WEB=0` stops the assistant serving the page (API only).
+- **A label agent as its own service** (e.g. a Railway service per agent): start `python -m brand_agent --label labels/<drug>.json --host 0.0.0.0 --port $PORT --domain scriptsync.health`. It writes its key from `ANS_KEY_<DRUG>_PEM_B64` before loading its identity, so keep DNS's `_agentid.<drug>.scriptsync.health` key and this secret the same key.
+- **The site pointing at public agents:** set `SCRIPTSYNC_ENDPOINT_<DRUG>=https://<public agent url>` (for example `SCRIPTSYNC_ENDPOINT_SIMVASTATIN`). The assistant, identity verification and `serve.py` all read `config/agents.json` through `common/agents_config.py`, so they agree on the URL, and `serve.py` skips starting an agent that is hosted elsewhere. Keep each agent's `ansName` unchanged: the identity check reads DNS by name, not by URL.
 
 ## Demo and pitch plan
 Story: a doctor can't tell whether a message claiming to be from a manufacturer is real. About 3 minutes.

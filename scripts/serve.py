@@ -16,7 +16,6 @@ does not publish and the identity checks will (correctly) fail.
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -28,21 +27,23 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
-KEY_DIR = ROOT / "keys"
+sys.path.insert(0, str(ROOT))   # so `common` imports work when this file is run as a script
+
+from common import agents_config, keys  # noqa: E402
+
+KEY_DIR = keys.KEY_DIR
 DOMAIN_IN_NAME = re.compile(r"\.v\d+\.\d+\.\d+\.(.+)$")
 
 
 def load_config(path: Path | None = None) -> list[dict]:
-    with open(path or ROOT / "config" / "agents.json", encoding="utf-8") as f:
-        return json.load(f)["agents"]
+    return agents_config.load_agents(path)   # applies SCRIPTSYNC_ENDPOINT_<DRUG> overrides
 
 
 def is_local(endpoint: str) -> bool:
     return (urlparse(endpoint).hostname or "") in ("127.0.0.1", "localhost", "::1")
 
 
-def key_env_var(drug: str) -> str:
-    return "ANS_KEY_" + re.sub(r"[^A-Z0-9]", "_", drug.upper()) + "_PEM_B64"
+key_env_var = keys.key_env_var
 
 
 def build_plan(agents: list[dict], demo: bool, python: str = sys.executable) -> list[dict]:
@@ -73,17 +74,8 @@ def provision_keys(agents: list[dict], environ=os.environ, key_dir: Path = KEY_D
     for a in agents:
         if a.get("role") == "attacker" or not is_local(a["endpoint"]):
             continue
-        value = environ.get(key_env_var(a["drug"]))
-        target = key_dir / f"{a['drug']}.ed25519"
-        if not value or target.exists():
-            continue
-        key_dir.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(base64.b64decode(value))
-        try:
-            target.chmod(0o600)
-        except OSError:
-            pass
-        written.append(target.name)
+        if keys.provision_key(a["drug"], environ, key_dir):
+            written.append(keys.key_path(a["drug"], key_dir).name)
     return written
 
 
@@ -138,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote agent key {name} from the environment", flush=True)
     for a in agents:
         if a.get("role") != "attacker" and is_local(a["endpoint"]) and not args.no_agents \
-                and not (KEY_DIR / f"{a['drug']}.ed25519").exists():
+                and not keys.key_path(a["drug"]).exists():
             print(f"WARNING: no key for the {a['drug']} agent. It will generate a new identity that DNS does not "
                   f"publish, so its identity check will fail. Set {key_env_var(a['drug'])}.", flush=True)
 
