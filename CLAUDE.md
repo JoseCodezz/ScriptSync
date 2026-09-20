@@ -23,7 +23,7 @@ A doctor asks a drug question in a chat. Each drug has a small label agent that 
 | Area | State |
 | --- | --- |
 | Doctor assistant (`assistant/`) | Done: ask flow, question understanding, PHI guard, overlap/gap logic, rules, handoff drafts, audit log, parallel verification. |
-| Brand agents (`brand_agent/`, `labels/`) | Done: simvastatin + clarithromycin, 15 verbatim passages (re-checked against live openFDA), signed answers, Ed25519 identity. Claude picks sections only if `ANTHROPIC_API_KEY` is set; otherwise keyword matching (`selectionMode` says which). |
+| Brand agents (`brand_agent/`, `labels/`) | Done: simvastatin + clarithromycin, 19 verbatim passages each (side effects, warnings, pregnancy, pediatric, renal/hepatic, overdose, mechanism as well as interactions/dosing; all re-checked against live openFDA), signed answers, Ed25519 identity. Claude picks sections only if `ANTHROPIC_API_KEY` is set; otherwise keyword matching (`selectionMode` says which). |
 | Identity verification | **Partly live**: DNS key lookup + signed challenge are real; registry log + revocation are simulated. See below, including the key problem. |
 | Web UI (`web/`) | Done: chat, Sources/Rules/Activity panels, presenter demo guide, readable answers. |
 | Node `ans-verify` (unmerged) | Parked: `src/server.ts` is still a stub; it overlaps the Python verifier. Decide whether to drop it. |
@@ -47,7 +47,7 @@ A doctor asks a drug question in a chat. Each drug has a small label agent that 
 - Real drugs, real label text, quoted verbatim. Fictional drugs were rejected (invented text is an invented medical claim). The risk is impersonating a company, not naming a drug: generic drug names only, no manufacturer names, brands or logos in the UI, agent names, config or slides.
 - Drug pair: **simvastatin + clarithromycin**. Each label independently names the other as a contraindication (simvastatin §4; clarithromycin §4.5), so two agents that never talk converge on the same finding, and a judge can check both on DailyMed.
 - Agent naming: by drug + text source. UI: "Simvastatin label agent". ANS-style name: `a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.health`. Domain `scriptsync.health` is ours, registered at Porkbun.
-- "Not covered" means "outside the hand-picked passages these agents serve" (6-8 sections per label), NOT "the FDA label is silent". Say so in the pitch; the UI does.
+- "Not covered" means "outside the hand-picked passages these agents serve" (19 sections per label), NOT "the FDA label is silent". Say so in the pitch; the UI does.
 - Each question is answered on its own (no chat memory), so a follow-up like "and for kidneys?" does not know the drug. The composer says so.
 
 ## Architecture
@@ -60,7 +60,7 @@ browser (web/, :5500) -> assistant (:8080) -> label agents (:9001 simvastatin, :
 - `common/signing.py`: HMAC signing shared by agents and assistant. `config/agents.json` (discovery: add an entry = new agent, no code change), `config/rules.json` (doctor's rules).
 - `web/`: plain HTML/CSS/JS, no build step, calls the assistant at `http://127.0.0.1:8080` (CORS is open). All API text is escaped before it reaches the page.
 - Contracts live next to the code: `assistant/README.md` (assistant API, `/ask`, `/health`, tags) and `brand_agent/README.md` (agent wire format, identity). Do not change a contract without telling the group.
-- Tag vocabulary (label authors must use these; gap detection depends on them): CYP3A, interaction, dosing, indication, monitoring, liver, renal, pregnancy, older-adults, pediatric, switching.
+- Tag vocabulary (label authors must use these; gap detection depends on them): CYP3A, interaction, dosing, indication, monitoring, liver, renal, pregnancy, older-adults, pediatric, switching, adverse-reactions, warnings, overdose, mechanism.
 - Demo mode: `SCRIPTSYNC_DEMO=1` enables `/attack/*` and lists impostors in `/agents`. Without it the assistant is the product API (`/attack` returns 403).
 - Settings (`.env`, copy `.env.example`): `ANTHROPIC_API_KEY` (optional; leave it unset unless it is a real key), `ANS_DOMAIN`, `ANS_DNS_VERIFY`, `ANS_ALLOW_UNVALIDATED_DNS`, `SCRIPTSYNC_DEMO`, `SCRIPTSYNC_DEMO_KEY`.
 
