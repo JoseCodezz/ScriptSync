@@ -13,16 +13,25 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from common.signing import now_iso, sign_response
 
+from common.caller_identity import verify_request
+
 from .ans import AgentIdentity, ANSName, check_dns_anchor
 from .selector import select, selection_mode
+
+
+# Enforcement is opt-in so publishing the caller's DNS record and rolling out
+# signing can happen in either order without the site going dark. When off, the
+# caller is still checked and reported - the agent just does not refuse.
+REQUIRE_CALLER = os.environ.get("SCRIPTSYNC_REQUIRE_CALLER_IDENTITY", "0") == "1"
 
 
 class AnswerRequest(BaseModel):
@@ -137,7 +146,19 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
                 "sections": len(sections), "selection": selection_mode()}
 
     @app.post("/answer")
-    async def answer(request: AnswerRequest) -> dict:
+    async def answer(request: AnswerRequest, http_request: Request) -> dict:
+        # Who is asking? The key comes from the caller's own DNS record, never
+        # from the request, so a caller cannot vouch for itself.
+        caller = await asyncio.to_thread(
+            verify_request, http_request.headers, ans_name.full,
+            await http_request.body(),
+        )
+        if REQUIRE_CALLER and not caller["ok"]:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Caller identity not verified: {caller['reason']}",
+            )
+
         selection, mode = await select(
             request.question, request.patientContext, drug, sections
         )
@@ -173,6 +194,9 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
             ]
 
         response["selectionMode"] = mode
+        # Reported either way, so the UI can show that the exchange was mutual.
+        response["caller"] = {"verified": caller["ok"], "name": caller["caller"],
+                              "detail": caller["reason"], "enforced": REQUIRE_CALLER}
         response["timestamp"] = now_iso()
         response["signature"] = sign_response(response)
         return response

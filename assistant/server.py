@@ -53,9 +53,34 @@ def load_rules() -> dict:
 
 
 # ---------- talking to one agent ----------
+ASSISTANT_ANS_NAME = os.environ.get(
+    "SCRIPTSYNC_ASSISTANT_ANS",
+    "a2a://hcpAssistant.consult.assistant.v1.0.0.scriptsync.health",
+)
+
+
+def _assistant_identity():
+    """The assistant's own signing key, or None if it has no identity here."""
+    try:
+        from brand_agent.ans import ANSName, AgentIdentity
+        return AgentIdentity.load_or_create(ANSName.parse(ASSISTANT_ANS_NAME))
+    except Exception:  # noqa: BLE001 - unsigned calls still work; agents report it
+        return None
+
+
 async def call_agent(agent: dict, question: str) -> dict:
+    # Sign the exact bytes sent, bound to this agent, so the assertion cannot be
+    # replayed against another agent or reused for a different question.
+    body = json.dumps({"question": question}, separators=(",", ":")).encode()
+    headers = {"content-type": "application/json"}
+    identity = _assistant_identity()
+    if identity is not None:
+        from common.caller_identity import sign_request
+        headers.update(sign_request(identity, agent["ansName"], body))
+
     async with httpx.AsyncClient(timeout=AGENT_TIMEOUT) as client:
-        r = await client.post(agent["endpoint"].rstrip("/") + "/answer", json={"question": question})
+        r = await client.post(agent["endpoint"].rstrip("/") + "/answer",
+                              content=body, headers=headers)
         r.raise_for_status()
         return r.json()
 
