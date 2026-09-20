@@ -28,7 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LABELS = {"simvastatin": ROOT / "labels" / "simvastatin.json",
           "clarithromycin": ROOT / "labels" / "clarithromycin.json"}
 TAGS = {"CYP3A", "interaction", "dosing", "indication", "monitoring", "liver",
-        "renal", "pregnancy", "older-adults", "pediatric"}
+        "renal", "pregnancy", "older-adults", "pediatric", "switching",
+        "adverse-reactions", "warnings", "overdose", "mechanism"}
 
 PASSED: list[str] = []
 FAILED: list[str] = []
