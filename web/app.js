@@ -150,19 +150,33 @@ function resultCard(kind, r) {
   return `<div class="card"><h4>${esc(r.brand)} label agent</h4>${rows}<div class="st" data-chip="${esc(chip)}"></div>${why}</div>`;
 }
 
-// Display-only formatting of a verbatim quote. It wraps the label's own headings in <span class="lh">
-// (bold, on their own line) and never adds, removes or reorders a character of the text.
-const LABEL_HEADS = /\b(Clinical Impact|Intervention|Examples):/g;
+// Display-only formatting of a verbatim quote. `a.view` holds character offsets the assistant computed from the
+// passage's own text (assistant/readable.py); this turns them into line breaks and emphasis. It never adds, removes
+// or reorders a character: the runs below, joined, are exactly a.text, and a test checks that on screen.
 function quoteHtml(a) {
-  const t = String(a.text ?? "");
-  const marks = [];
-  const lead = a.section && a.title ? `${a.section} ${a.title}` : "";
-  if (lead && t.startsWith(lead)) marks.push([0, lead.length]);
-  else { const i = t.indexOf("Clinical Impact:"); if (i > 0 && i < 80) marks.push([0, i]); }
-  for (const m of t.matchAll(LABEL_HEADS)) if (!marks.length || m.index >= marks[marks.length - 1][1]) marks.push([m.index, m.index + m[0].length]);
-  let out = "", pos = 0;
-  for (const [st, en] of marks) { out += esc(t.slice(pos, st)) + `<span class="lh">${esc(t.slice(st, en))}</span>`; pos = en; }
-  return out + esc(t.slice(pos));
+  const t = String(a.text ?? ""), v = a.view;
+  if (!v) return esc(t);
+  const n = t.length, flags = new Uint8Array(n);
+  const mark = (spans, f) => (spans || []).forEach(([s, e]) => { for (let i = Math.max(0, s); i < Math.min(n, e); i++) flags[i] |= f; });
+  mark(v.heads, 1); mark(v.refs, 2); mark(v.hits, 4); if (v.key) mark([v.key], 8);
+  const cuts = [...new Set([0, ...(v.breaks || []).filter((b) => b > 0 && b < n)])].sort((x, y) => x - y);
+  const cls = (f) => [f & 1 && "lh", f & 2 && "ref", f & 4 && "hit", f & 8 && "kp"].filter(Boolean).join(" ");
+  return cuts.map((start, k) => {
+    const end = cuts[k + 1] ?? n;
+    let line = "";
+    for (let i = start, j; i < end; i = j) {
+      for (j = i + 1; j < end && flags[j] === flags[i]; j++);
+      const c = cls(flags[i]), piece = esc(t.slice(i, j));
+      line += c ? `<span class="${c}">${piece}</span>` : piece;
+    }
+    return `<span class="ln${flags[start] & 1 ? " hd" : ""}">${line}</span>`;
+  }).join("");
+}
+
+// The one sentence to read first, copied from the passage (chosen by a fixed keyword rule on the server, not by AI).
+function keyPoint(a) {
+  const k = a.view?.key;
+  return k ? `<div class="key"><span class="kl">Key point · exact words from the label</span>${esc(String(a.text).slice(k[0], k[1]))}</div>` : "";
 }
 
 const shortTitle = (t) => { t = String(t || ""); return t.length > 34 ? t.slice(0, 33) + "…" : t; };
@@ -172,7 +186,7 @@ function passageCard(a, id) {
   const long = String(a.text || "").length > 320;   // long passages start folded, with a visible toggle
   const where = [a.labelVersion, a.labelDate, a.source?.field && `openFDA · ${a.source.field}`].filter(Boolean).map(esc).join(" · ");
   return `<div class="card" id="${esc(id)}"><div class="ptitle"><span class="sec">§${esc(a.section)}</span>${esc(a.title || "")}</div>
-    <blockquote${long ? ' class="clamp"' : ""}>${quoteHtml(a)}</blockquote>${long ? '<button type="button" class="more">Show full passage</button><br>' : ""}
+    ${keyPoint(a)}<blockquote${long ? ' class="clamp"' : ""}>${quoteHtml(a)}</blockquote>${long ? '<button type="button" class="more">Show full passage</button><br>' : ""}
     ${(a.tags || []).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}${cut}<div class="passage-meta">${where}</div></div>`;
 }
 
@@ -236,6 +250,7 @@ function answerHtml(d) {
     + d.blocked.map((b) => alertCard(`${b.brand} label agent`, b)).join("")
     + d.unreachable.map((u) => `<div class="note err">${esc(u.brand)} label agent did not respond. ${esc(u.reason)}</div>`).join("")
     + d.skipped.map((k) => `<div class="mono" style="margin-top:10px">${esc(k.brand)} skipped: ${esc(k.reason)}</div>`).join("")
+    + (d.sources.some((s) => (s.answers || []).some((a) => a.view)) ? '<p class="legend"><span class="hit">Highlighted</span> words are from your question. <b>Key point</b> is one sentence copied from the passage, picked by a fixed keyword rule (not AI). Grey text is the cross-references the label itself contains. The passage text itself is unchanged.</p>' : "")
     + `<p class="disc">${esc(d.disclaimer || "Cross-references are for clinician review. Not medical advice.")}</p>`;
 }
 

@@ -114,8 +114,12 @@ with sync_playwright() as pw:
     hows = bot.locator("details.how").first.inner_text()
     check("identity details name the simulated checks as simulated", hows.lower().count("(simulated)") >= 2, hows)
     check("card titles use the label's own section title", "§7.1" in bot.locator(".ptitle").first.inner_text() and "Drug Interactions" in bot.locator(".ptitle").first.inner_text(), bot.locator(".ptitle").first.inner_text())
-    lh = bot.locator("blockquote .lh").all_inner_texts()
+    lh = bot.locator("blockquote .lh").evaluate_all("els => els.map(e => e.textContent)")   # textContent: CSS upper-cases what is drawn
     check("label's own headings are set apart (Clinical Impact / Intervention / Examples)", any("Clinical Impact:" in x for x in lh) and any("Intervention:" in x for x in lh) and len(lh) >= 3, lh)
+    keys = bot.locator(".key").evaluate_all("els => els.map(e => e.textContent.replace(/^Key point · exact words from the label/, ''))")
+    check("key points are sentences copied out of a passage", len(keys) >= 2 and all(any(k in t for t in api_texts) for k in keys), keys)
+    check("passages are drawn as separate lines (headings, sentences)", bot.locator("blockquote .ln").count() > bot.locator("blockquote").count() * 2)
+    check("a legend says the highlighting is display-only", "picked by a fixed keyword rule (not AI)" in bot.locator(".legend").inner_text() and "unchanged" in bot.locator(".legend").inner_text())
     check("'You asked' line repeats the question", "You asked: “Can simvastatin be taken with clarithromycin?”" in bot.locator(".asked").inner_text(), bot.locator(".asked").inner_text())
     check("dark colour scheme (no pale scrollbar)", page.evaluate("getComputedStyle(document.documentElement).colorScheme") == "dark")
     page.screenshot(path=f"{SP}/c02_answer.png")
