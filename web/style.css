@@ -74,7 +74,7 @@ ul.ck li.done{color:var(--tx)}ul.ck li.done:before{background:var(--ok);box-shad
 ul.ck li.bad{color:var(--tx)}ul.ck li.bad:before{background:var(--bad);box-shadow:0 0 10px var(--bad)}
 ul.ck li .mono{flex-basis:100%;padding-left:20px;font-weight:500}
 blockquote{background:var(--bg);border-left:3px solid #ff6f91;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:14px;color:#cfd4f0;overflow-wrap:anywhere}
-blockquote.clamp{max-height:128px;overflow:hidden;position:relative}
+blockquote.clamp{max-height:150px;overflow:hidden;position:relative}
 blockquote.clamp:after{content:"";position:absolute;left:0;right:0;bottom:0;height:56px;background:linear-gradient(transparent,var(--bg))}
 .more{background:none;border:0;color:#b8adff;font:800 13px 'Manrope',sans-serif;cursor:pointer;padding:0 0 8px;text-decoration:underline}
 .note{border-radius:16px;padding:13px 16px;margin-top:12px;font-size:14px;font-weight:600}
@@ -145,8 +145,18 @@ body.demo-on .demo-toggle{display:none}
 .asked{font-size:13px;color:var(--mut);margin-bottom:8px;overflow-wrap:anywhere}
 .ptitle{font-weight:800;font-size:15px;line-height:1.35}
 .ptitle .sec{color:#ffb38a;margin-right:8px}
-.lh{display:block;font-weight:800;color:#fff;margin-top:.75em}
-.lh:first-child{margin-top:0}
+/* a verbatim passage drawn as lines: the label's headings, one sentence per line, dimmed cross-references */
+.ln{display:block;padding:2px 0}
+.ln.hd{margin-top:.8em;padding-bottom:0}
+.ln.hd:first-child{margin-top:0}
+.lh{font-weight:800;color:#ffb38a;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
+.ref{color:var(--mut);font-size:.88em}
+.hit{background:rgba(255,213,79,.22);color:#fff;border-radius:3px;padding:0 2px}
+.kp{background:rgba(255,111,145,.13);border-radius:4px}
+.key{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:rgba(255,111,145,.1);border:1px solid rgba(255,111,145,.35);font-size:15px;font-weight:700;line-height:1.45;color:#fff;overflow-wrap:anywhere}
+.key .kl{display:block;margin-bottom:3px;font:800 11px 'Manrope',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ff9db3}
+.legend{margin-top:12px;font-size:12px;color:var(--mut)}
+.legend .hit{color:var(--tx)}
 .passage-meta{margin-top:8px}
 .glance{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:12px;font-weight:800;color:var(--mut)}
 .glance button{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font:700 12px 'Manrope',sans-serif;color:var(--tx);cursor:pointer}

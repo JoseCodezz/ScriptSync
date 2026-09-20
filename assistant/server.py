@@ -24,6 +24,7 @@ except ImportError:  # python-dotenv is in requirements.txt; without it .env is 
 
 from assistant import log as auditlog  # noqa: E402
 from assistant.merge import merge_results
+from assistant.readable import add_reading_aids
 from assistant.understand import analyze, build_notices, drug_gaps, find_phi
 from assistant.verify import describe_verification, is_agent_verified
 from common import agents_config, ans_registry
@@ -178,6 +179,7 @@ async def ask(req: AskRequest):
     merged = merge_results(question, results)
     merged["gaps"].extend(drug_gaps(analysis))
     merged["analysis"] = analysis
+    add_reading_aids(merged, analysis)   # display-only offsets; the passage text is not touched
     merged["notices"] = build_notices(analysis)
     return merged
 
