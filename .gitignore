@@ -7,3 +7,8 @@ __pycache__/
 logs/
 keys/
 data/
+
+# ANS certificate private keys - never commit
+certs/
+*.key
+*.pem

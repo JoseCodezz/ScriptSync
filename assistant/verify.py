@@ -67,7 +67,10 @@ FAILURE_TTL_SECONDS = 15.0   # a failed one is retried soon, so a slow start can
 
 def _load_agents():
     with open(ROOT / "config" / "agents.json", encoding="utf-8") as f:
-        return json.load(f)["agents"]
+        agents = json.load(f)["agents"]
+    for agent in agents:
+        agent["endpoint"] = os.path.expandvars(agent["endpoint"])
+    return agents
 
 
 def _live_dns(ans_name: str) -> tuple[bool, str, str | None]:

@@ -44,7 +44,12 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # ---------- config (re-read every request so config edits need no restart) ----------
 def load_agents() -> list[dict]:
     with open(ROOT / "config" / "agents.json", encoding="utf-8") as f:
-        return json.load(f)["agents"]
+        agents = json.load(f)["agents"]
+    # Endpoints may be written as "${VAR}" so one config works locally and on a
+    # host, where the agents are separate services on public URLs.
+    for agent in agents:
+        agent["endpoint"] = os.path.expandvars(agent["endpoint"])
+    return agents
 
 
 def load_rules() -> dict:
