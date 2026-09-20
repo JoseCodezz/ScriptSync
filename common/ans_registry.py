@@ -68,10 +68,32 @@ def _default_resolver(hostname: str):
     return resolve_txt(hostname)
 
 
+FETCH_ATTEMPTS = 3
+
+
 def _default_fetch(url: str) -> tuple[int, bytes]:
+    """Fetch the transparency entry, retrying briefly.
+
+    The log intermittently answers 404 for an entry that exists - observed
+    live on registered agents. A single attempt therefore caches a false
+    "not registered" for a minute, which is how an ANS panel goes blank in
+    the middle of a demo. Retry on anything that is not a 200.
+    """
     import httpx
-    response = httpx.get(url, timeout=8.0, follow_redirects=False)
-    return response.status_code, response.content
+
+    last_status, last_body = 0, b""
+    for attempt in range(FETCH_ATTEMPTS):
+        try:
+            response = httpx.get(url, timeout=8.0, follow_redirects=False)
+            if response.status_code == 200:
+                return response.status_code, response.content
+            last_status, last_body = response.status_code, response.content
+        except Exception:  # noqa: BLE001 - retry, then let the caller report it
+            if attempt == FETCH_ATTEMPTS - 1:
+                raise
+        if attempt < FETCH_ATTEMPTS - 1:
+            time.sleep(0.4 * (2 ** attempt))
+    return last_status, last_body
 
 
 def _now_iso() -> str:
