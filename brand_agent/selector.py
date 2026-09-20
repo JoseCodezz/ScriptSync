@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -77,33 +78,96 @@ TAG_SYNONYMS = {
               "together", "combine", "concomitant"],
     "interaction": ["interaction", "interact", "co-prescribe", "coadminist", "concomitant",
                     "together", "combine"],
-    "dosing": ["dose", "dosing", "dosage", "how much", "mg", "titrate", "start"],
-    "indication": ["indicated", "indication", "treat", "used for", "approved for"],
-    "monitoring": ["monitor", "check", "follow up", "watch", "lab", "enzyme"],
+    "dosing": ["dose", "dosing", "dosage", "how much", "how often", "mg", "titrate", "start"],
+    "indication": ["indicated", "indication", "treat", "used for", "approved for", "what is it for"],
+    "monitoring": ["monitor", "follow up", "follow-up", "labs", "lab test", "enzyme"],
     "renal": ["kidney", "renal", "creatinine", "dialysis", "egfr", "crcl"],
-    "liver": ["liver", "hepatic", "transaminase"],
+    "liver": ["liver", "hepatic", "transaminase", "cirrhosis"],
     "older-adults": ["elderly", "older", "geriatric", "65", "75", "aged"],
-    "pediatric": ["child", "pediatric", "infant", "adolescent"],
-    "pregnancy": ["pregnan", "breastfeed", "lactation", "nursing"],
+    "pediatric": ["child", "pediatric", "paediatric", "infant", "adolescent", "kids"],
+    "pregnancy": ["pregnan", "breastfeed", "lactation", "nursing", "fetal", "fetus", "trimester"],
+    "adverse-reactions": ["side effect", "side-effect", "adverse", "reaction", "tolerab"],
+    "warnings": ["warning", "precaution", "boxed", "black box"],
+    "overdose": ["overdos", "too much"],
+    "mechanism": ["mechanism", "how does", "how it works", "mode of action", "pharmacokinetic",
+                  "half-life", "half life", "metaboli", "absorb", "excret", "clearance", "pharmacology"],
 }
 
+# Words that appear in many passage titles and say nothing about what the question is about.
+GENERIC_TITLE_WORDS = {"important", "information", "recommended", "dosage", "patients", "clinical",
+                       "experience", "modifications", "administration", "increase", "adults"}
 
-def keyword_select(question: str, sections: list[dict[str, Any]]) -> Selection:
-    """Deterministic fallback used when the model cannot be reached."""
+# "tell me about X", "what is X": a bare question about the drug, which the label answers with what it is for.
+GENERAL_QUESTION = (r"\btell me about\b", r"\bwhat is\b", r"\bwhat's\b", r"\boverview\b", r"\bexplain\b",
+                    r"\bdescribe\b", r"\binformation (?:on|about)\b", r"\babout\b")
+
+
+TOPIC_WORDS = {word for words in TAG_SYNONYMS.values() for word in words}
+FILLER_WORDS = {"patients", "medication", "medications", "medicine", "medicines", "treatment", "therapy", "currently"}
+
+
+def _has(text: str, phrase: str) -> bool:
+    """True if `phrase` occurs at the start of a word ("interact" matches "interactions", not "counteract")."""
+    return re.search(r"\b" + re.escape(phrase), text) is not None
+
+
+def _long_words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z][a-z0-9-]{7,}", text))
+
+
+def _other_names(text: str, drug_words: set[str]) -> set[str]:
+    """Distinctive words in the question that could name another drug: long, and not a topic word or filler."""
+    return {word for word in _long_words(text)
+            if word not in drug_words and word not in GENERIC_TITLE_WORDS and word not in FILLER_WORDS
+            and not any(word.startswith(topic) for topic in TOPIC_WORDS)}
+
+
+def keyword_select(question: str, sections: list[dict[str, Any]], drug: str | None = None,
+                   limit: int = 4) -> Selection:
+    """Deterministic fallback used when the model cannot be reached (or there is no API key).
+
+    A passage scores 2 for each of its topic tags the question asks about, and 1 for a distinctive word from its
+    title. The drug's own name never counts: every title mentions the drug, so matching on it made any question
+    that named the drug return the same passage. The best `limit` passages are returned, best first.
+    """
     text = question.lower()
-
-    def matches(section: dict[str, Any]) -> bool:
+    drug_words = set(re.findall(r"[a-z]+", (drug or "").lower()))
+    named = bool(drug) and _has(text, drug.lower())
+    # "Can <this drug> be taken with <other drug>?": the other drug's name is not a topic, but if this label's own
+    # interaction passages mention it, those passages are exactly the answer. Only when this drug is named too,
+    # so "tell me about <other drug>" is still refused here.
+    others = _other_names(text, drug_words) if named else set()
+    interaction_tags = {"interaction", "CYP3A"}
+    # Which of this label's interaction passages actually name the other term. If none do, the label has nothing
+    # on it (grapefruit juice, say) and we must not dress up generic interaction text as an answer.
+    naming = {s["section"] for s in sections
+              if interaction_tags & set(s["tags"]) and others & _long_words(s["text"].lower())}
+    ranked = []
+    for order, section in enumerate(sections):
+        score = 0
         for tag in section["tags"]:
-            if tag.lower() in text:
-                return True
-            if any(word in text for word in TAG_SYNONYMS.get(tag, [])):
-                return True
-        return any(word in text for word in section["title"].lower().split() if len(word) > 5)
+            if _has(text, tag.lower()) or any(_has(text, word) for word in TAG_SYNONYMS.get(tag, [])):
+                score += 2
+        if naming and interaction_tags & set(section["tags"]):
+            score += 1                                    # a two-drug question is an interaction question
+            if section["section"] in naming:
+                score += 2                                # ...and a passage that names the other drug ranks first
+        for word in set(re.findall(r"[a-z]{6,}", section["title"].lower())):
+            if word not in drug_words and word not in GENERIC_TITLE_WORDS and _has(text, word):
+                score += 1
+        if score:
+            ranked.append((-score, order, section["section"]))
 
-    hits = [s["section"] for s in sections if matches(s)]
-    if not hits:
-        return Selection(refuse=True, reason="No matching passage in this label.")
-    return Selection(sections=hits)
+    if ranked:
+        ranked.sort()
+        return Selection(sections=[number for _, _, number in ranked[:limit]])
+
+    if named and (any(re.search(pattern, text) for pattern in GENERAL_QUESTION)
+                  or re.fullmatch(r"\W*" + re.escape(drug.lower()) + r"\W*", text)):
+        overview = [s["section"] for s in sections if "indication" in s["tags"]]
+        if overview:
+            return Selection(sections=overview[:1])
+    return Selection(refuse=True, reason="No matching passage in this label.")
 
 
 async def select(
@@ -114,6 +178,10 @@ async def select(
 ) -> tuple[Selection, str]:
     """Return (selection, mode) where mode is 'model' or 'keyword-fallback'."""
     valid = {s["section"] for s in sections}
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        # No key: do not attempt a model call that can only fail (it raised a TypeError on every question).
+        return keyword_select(question, sections, drug), "keyword-fallback (no ANTHROPIC_API_KEY)"
 
     try:
         import anthropic
@@ -156,4 +224,4 @@ async def select(
             "Model selection failed (%s: %s); using keyword fallback",
             type(exc).__name__, exc,
         )
-        return keyword_select(question, sections), f"keyword-fallback ({type(exc).__name__})"
+        return keyword_select(question, sections, drug), f"keyword-fallback ({type(exc).__name__})"

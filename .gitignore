@@ -8,7 +8,5 @@ logs/
 keys/
 data/
 
-# ANS certificate private keys - never commit
+# ANS certificate keys (from ans-cli generate-csr). Never commit these.
 certs/
-*.key
-*.pem

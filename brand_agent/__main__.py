@@ -11,10 +11,13 @@ the default `.example` placeholder keeps DNS verification honestly reporting
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 
 import uvicorn
+
+from common.keys import key_env_var, provision_key
 
 from .service import build_app
 
@@ -35,6 +38,10 @@ def main() -> None:
     from .selector import selection_mode
 
     print(f"[{args.label.stem}] section selection: {selection_mode()}", flush=True)
+    # A host has no key files: take this agent's key from ANS_KEY_<DRUG>_PEM_B64 before it loads its identity.
+    drug = json.loads(args.label.read_text(encoding="utf-8"))["agent"]["drug"]
+    if provision_key(drug):
+        print(f"[{args.label.stem}] wrote its key from {key_env_var(drug)}", flush=True)
     app = build_app(args.label, domain=args.domain, version=args.version)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 

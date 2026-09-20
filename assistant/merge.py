@@ -3,13 +3,16 @@ tags in the label data. Every statement is a verbatim label passage.
 
 TAG CONTRACT (label authors must use these tag spellings):
   CYP3A, interaction, dosing, indication, monitoring, liver,
-  renal, pregnancy, older-adults, pediatric, switching
+  renal, pregnancy, older-adults, pediatric, switching,
+  adverse-reactions, warnings, overdose, mechanism
   (switching = a passage that actually addresses changing from one drug to another.
    Most labels have none, so a switching question usually ends in 'Not covered'.)
 """
 
 # Tags too generic to count as an overlap on their own.
-IGNORED_TAGS = {"interaction", "dosing", "indication", "monitoring"}
+# The broad safety/pharmacology tags are also too generic: two labels both having a "warnings" passage says nothing.
+IGNORED_TAGS = {"interaction", "dosing", "indication", "monitoring",
+                "adverse-reactions", "warnings", "overdose", "mechanism"}
 
 # Coverage topics: tag -> keywords that mean the question is asking about it.
 COVERAGE_TOPICS = {
@@ -20,6 +23,10 @@ COVERAGE_TOPICS = {
     "liver": ["liver", "hepatic"],
     "switching": ["switch", "transition", "convert", "conversion", "taper", "washout",
                   "change from", "changing from", "replace", "instead of"],
+    "adverse-reactions": ["side effect", "side-effect", "adverse"],
+    "warnings": ["warning", "precaution", "boxed"],
+    "overdose": ["overdos", "too much"],
+    "mechanism": ["mechanism", "how does it work", "mode of action", "half-life", "half life", "pharmacokinetic"],
 }
 
 OVERLAP_NOTE = (

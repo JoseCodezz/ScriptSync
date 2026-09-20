@@ -26,6 +26,7 @@ from assistant import log as auditlog  # noqa: E402
 from assistant.merge import merge_results
 from assistant.understand import analyze, build_notices, drug_gaps, find_phi
 from assistant.verify import describe_verification, is_agent_verified
+from common import agents_config
 from common.signing import SIGNING_MODE, check_freshness, verify_signature
 
 # Brand agents call a model to choose label sections, so responses take a few
@@ -43,13 +44,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # ---------- config (re-read every request so config edits need no restart) ----------
 def load_agents() -> list[dict]:
-    with open(ROOT / "config" / "agents.json", encoding="utf-8") as f:
-        agents = json.load(f)["agents"]
-    # Endpoints may be written as "${VAR}" so one config works locally and on a
-    # host, where the agents are separate services on public URLs.
-    for agent in agents:
-        agent["endpoint"] = os.path.expandvars(agent["endpoint"])
-    return agents
+    return agents_config.load_agents()   # applies SCRIPTSYNC_ENDPOINT_<DRUG> overrides
 
 
 def load_rules() -> dict:
