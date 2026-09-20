@@ -7,3 +7,6 @@ __pycache__/
 logs/
 keys/
 data/
+
+# ANS certificate keys (from ans-cli generate-csr). Never commit these.
+certs/
