@@ -18,6 +18,7 @@ const EVENT_LABELS = {
   answer: "Verified answer delivered", refused: "Agent declined", agent_error: "Agent unreachable",
   skipped: "Skipped", attack: "Impostor test started", rules_changed: "Rules updated",
   handoff_draft: "Handoff drafted", phi_blocked: "Patient identifiers refused",
+  label_updated: "Label data refreshed from openFDA", label_update_failed: "Label refresh failed (kept cached data)",
 };
 // The assistant's verification mode, in words a doctor (or a judge) can read.
 const modeLabel = (m) => (m === "live-dns" ? "2 of 4 checks live" : m === "simulated" ? "simulated" : String(m || "simulated"));
@@ -26,7 +27,7 @@ const SUGGESTIONS = ["Can simvastatin be taken with clarithromycin?", "What do I
 const DEFAULT_Q = SUGGESTIONS[0];
 
 let journalLimit = 40;   // newest events shown first; "Show older events" adds 40 more
-const state = { online: false, health: null, agents: [], rules: null, log: [], busy: false, seq: 0, lastQuestion: null, sawAnswers: false, sawPlaceholder: false, msgs: new WeakMap() };
+const state = { online: false, health: null, agents: [], rules: null, log: [], busy: false, seq: 0, lastQuestion: null, sawAnswers: false, sawPlaceholder: false, msgs: new WeakMap(), freshness: [] };
 
 // ---------- API ----------
 async function api(path, options) {
@@ -227,8 +228,10 @@ function setBusy(b) {
 }
 
 // `impostor` (demo only) runs a real attack alongside the question, so the blocked
-// source shows up inside a normal answer.
-async function ask(question, { impostor } = {}) {
+// source shows up inside a normal answer. `patientContext` (optional, non-identifying
+// clinical details - see web/patient-context-template.txt) is sent once with this
+// question and never kept: not persisted here, not logged server-side (assistant/server.py).
+async function ask(question, { impostor, patientContext } = {}) {
   question = question.trim();
   if (!question || state.busy) return;
   if (impostor && state.health && state.health.demo === false) {
@@ -250,7 +253,7 @@ async function ask(question, { impostor } = {}) {
   let attackError = null;
   try {
     const [data, attack] = await Promise.all([
-      send("POST", "/ask", { question }),
+      send("POST", "/ask", patientContext ? { question, patientContext } : { question }),
       impostor ? send("POST", `/attack/${encodeURIComponent(impostor)}`, { question }).catch((e) => { attackError = e; return null; }) : null,
     ]);
     if (attack && attack.status === "blocked") data.blocked.push(attack);
@@ -299,7 +302,11 @@ $("#composer").addEventListener("submit", (e) => {
   const text = q.value;
   if (!text.trim() || state.busy) return;
   q.value = ""; q.style.height = "auto";
-  ask(text);
+  const ctx = $("#patientContext");
+  const patientContext = ctx.value.trim() || undefined;
+  ctx.value = "";                 // one question's worth, then gone - never kept around
+  $("#ctxbox").open = false;
+  ask(text, { patientContext });
 });
 $("#newChat").onclick = newChat;
 
@@ -347,7 +354,7 @@ thread.addEventListener("click", async (e) => {
 });
 
 // ---------- slide-over panels ----------
-const PANEL_TITLES = { sources: "Sources", rules: "Rules", activity: "Activity", status: "What's live and what's simulated" };
+const PANEL_TITLES = { sources: "Sources", rules: "Rules", activity: "Activity", status: "What's live and what's simulated", data: "Agent data" };
 let lastFocus = null;
 function openPanel(name) {
   lastFocus = document.activeElement;
@@ -359,6 +366,7 @@ function openPanel(name) {
   if (name === "rules") loadConsent();
   if (name === "activity") refreshLog();
   if (name === "status") renderTransparency();
+  if (name === "data") loadFreshness();
 }
 function closePanel() {
   $("#scrim").hidden = true; $("#panel").hidden = true;
@@ -393,6 +401,74 @@ async function loadAgents() {
       <ul class="ck">${checkRows(v)}</ul></div>`;
   }).join("") : '<div class="empty">No agents are configured.</div>';
 }
+
+// ---------- agent data freshness (corner indicator + Data panel) ----------
+const fmtAge = (h) => h == null ? "never pulled" : h < 1 ? "under an hour ago" : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`;
+
+function updateDataToggle() {
+  const stale = state.freshness.some((f) => f.stale);
+  $("#dataToggle").classList.toggle("stale", stale);
+  $("#dataToggle").title = stale ? "Some label agents are due for an update" : "All label agents are up to date";
+}
+
+function renderFreshness() {
+  $("#freshness").innerHTML = state.freshness.length ? state.freshness.map((f) => `
+    <div class="card" id="fresh-${esc(f.drug)}">
+      <h4>${esc(f.brand)} label agent</h4>
+      <div class="mono">Last pulled ${esc(fmtAge(f.ageHours))} · refreshes automatically past ${esc(f.maxAgeHours)}h old</div>
+      <span class="chip ${f.stale ? "bad" : "ok"}">${f.stale ? "Needs update" : "Up to date"}</span>
+      <button type="button" class="btn ghost" data-update="${esc(f.drug)}" style="margin-left:8px;padding:4px 12px;font-size:12px">Update now</button>
+      <div class="ubar ${f.stale ? "stale" : "fresh"}" id="bar-${esc(f.drug)}"><div class="fill"></div></div>
+    </div>`).join("") : '<div class="empty">No agents are configured.</div>';
+}
+
+async function loadFreshness() {
+  try { state.freshness = await api("/agents/freshness"); }
+  catch (err) { $("#freshness").innerHTML = `<div class="note err" style="margin-top:0">${esc(err.message)}</div>`; state.freshness = []; }
+  renderFreshness();
+  updateDataToggle();
+}
+
+async function updateOne(drug) {
+  const bar = document.getElementById(`bar-${drug}`);
+  const fill = bar?.querySelector(".fill");
+  bar?.classList.remove("fresh", "stale");
+  bar?.classList.add("run");
+  // A real fetch's progress isn't observable, so ease toward ~90% and let
+  // completion snap it the rest of the way - a growing bar, not a guess
+  // dressed up as one.
+  let pct = 8;
+  if (fill) fill.style.width = pct + "%";
+  const grow = setInterval(() => {
+    pct += (90 - pct) * 0.15;
+    if (fill) fill.style.width = pct + "%";
+  }, 200);
+
+  let ok = false;
+  try { ok = !!(await send("POST", `/agents/update/${encodeURIComponent(drug)}`)).updated; }
+  catch { ok = false; }
+
+  clearInterval(grow);
+  if (fill) fill.style.width = "100%";
+  bar?.classList.remove("run");
+  bar?.classList.add(ok ? "fresh" : "stale");
+  refreshLog();
+  await wait(900);   // let the finished color show before the card re-renders and clears it
+}
+
+$("#freshness").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-update]");
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  updateOne(btn.dataset.update).then(async () => { await loadFreshness(); btn.disabled = false; });
+});
+
+$("#updateAll").onclick = async () => {
+  const btn = $("#updateAll"); btn.disabled = true; btn.textContent = "Updating…";
+  await Promise.all(state.freshness.map((f) => updateOne(f.drug)));
+  await loadFreshness();
+  btn.disabled = false; btn.textContent = "Update all now";
+};
 
 const brandList = () => [...new Set(state.agents.map((a) => a.brand))];
 
@@ -472,7 +548,7 @@ function renderTransparency() {
       !on ? ["bad", "Offline"] : !live ? ["bad", "Simulated"] : vd.dnssecBypass ? ["bad", "Live · DNSSEC bypassed"] : ["ok", "Live"]],
     ["Identity: registry log + revocation", "There is no public registration log or revocation registry yet, so these two checks are simulated and labelled as such", ["bad", "Simulated"]],
     ["Signatures", "HMAC-SHA256 with a shared demo key", ["bad", "Demo key"]],
-    ["Label text", "Verbatim passages from public DailyMed / openFDA labels, saved ahead of time, with section and version. Only a hand-picked set of passages is served, so \"Not covered\" means outside those passages", label],
+    ["Label text", "Verbatim passages from public DailyMed / openFDA labels, saved ahead of time, with section and version. Every numbered contraindications/interactions/dosing/indications/geriatric-use section is auto-discovered, so \"Not covered\" means outside those fields, not that the label is silent", label],
     ["Overlap and gaps", "Tag matching, no language model", ["ok", "Deterministic"]],
     ["Contact rules", "Allowed brands are enforced. Quiet hours and urgent-alert rules are stored but not enforced yet", ["bad", "Partly built"]],
     ["Impostor tests", "Presenter-only. Available only when the assistant is started with SCRIPTSYNC_DEMO=1", on && h.demo ? ["v", "Demo mode on"] : ["", "Off"]],
@@ -537,6 +613,10 @@ async function init() {
   renderTransparency();
   renderJournal();
   q.focus();
-  await Promise.all([loadHealth(), refreshLog(), loadAgents().then(loadConsent)]);
+  await Promise.all([loadHealth(), refreshLog(), loadAgents().then(loadConsent), loadFreshness()]);
+  // Actual data refresh is occasional (agents check every 6h, only refetch past
+  // 24h old); this just re-reads that status - cheap - so the corner dot stays
+  // accurate without the doctor having to reopen the panel.
+  setInterval(loadFreshness, 5 * 60 * 1000);
 }
 init();

@@ -3,9 +3,9 @@
     "source": "openFDA / DailyMed Structured Product Label",
     "spl_id": "41392bb7-d916-446c-e063-6294a90a2c5c",
     "effective_time": "20251015",
-    "retrieved": "2026-09-19",
+    "retrieved": "2026-09-20",
     "verbatim": true,
-    "note": "Demo agent serving the public DailyMed label for clarithromycin. Not operated by any manufacturer. Passages are verbatim slices of the source SPL; section numbers and titles are read from the label text; char_start/char_end index into the named openFDA field."
+    "note": "Demo agent serving the public DailyMed label for clarithromycin. Not operated by any manufacturer. Passages are verbatim slices of the source SPL, automatically discovered from every numbered contraindications/interactions/dosing/indications/geriatric-use section rather than hand-picked; section numbers and titles are read from the label text; char_start/char_end index into the named openFDA field; topic tags are inferred from the same word list a clinician's question is matched against."
   },
   "agent": {
     "drug": "clarithromycin",
@@ -15,6 +15,84 @@
   },
   "labelVersion": "SPL 20251015",
   "sections": [
+    {
+      "section": "4",
+      "title": "CONTRAINDICATIONS",
+      "tags": [
+        "liver",
+        "renal"
+      ],
+      "text": "4 CONTRAINDICATIONS Hypersensitivity to clarithromycin or any macrolide drug ( 4.1 ) Cisapride and pimozide ( 4.2 ) History of cholestatic jaundice/hepatic dysfunction with use of clarithromycin ( 4.3 ) Colchicine in renal or hepatic impairment ( 4.4 ) Lomitapide, lovastatin, and simvastatin ( 4.5 ) Ergot alkaloids (ergotamine or dihydroergotamine) ( 4.6 ) Lurasidone ( 4.7 )",
+      "source": {
+        "field": "contraindications",
+        "char_start": 0,
+        "char_end": 378,
+        "truncated": false,
+        "header_preview": "4 CONTRAINDICATIONS Hypersensitivity to clarithromycin or any macrolide drug ( 4.1 ) Cisapride and pimozide ("
+      }
+    },
+    {
+      "section": "4.1",
+      "title": "Hypersensitivity",
+      "tags": [],
+      "text": "4.1 Hypersensitivity Clarithromycin tablets are contraindicated in patients with a known hypersensitivity to clarithromycin, erythromycin, or any of the macrolide antibacterial drugs [see Warnings and Precautions ( 5.1 )] .",
+      "source": {
+        "field": "contraindications",
+        "char_start": 378,
+        "char_end": 602,
+        "truncated": false,
+        "header_preview": "4.1 Hypersensitivity Clarithromycin tablets are contraindicated in patients with a known hypersensitivity to c"
+      }
+    },
+    {
+      "section": "4.2",
+      "title": "Cisapride and",
+      "tags": [
+        "CYP3A",
+        "interaction"
+      ],
+      "text": "4.2 Cisapride and Pimozide Concomitant administration of clarithromycin tablets with cisapride and pimozide is contraindicated [see Drug Interactions ( 7 )] . There have been postmarketing reports of drug interactions when clarithromycin is co\u2011administered with cisapride or pimozide, resulting in cardiac arrhythmias (QT prolongation, ventricular tachycardia, ventricular fibrillation, and torsades de pointes ) most likely due to inhibition of metabolism of these drugs by clarithromycin tablets. Fatalities have been reported.",
+      "source": {
+        "field": "contraindications",
+        "char_start": 602,
+        "char_end": 1132,
+        "truncated": false,
+        "header_preview": "4.2 Cisapride and Pimozide Concomitant administration of clarithromycin tablets with cisapride and pimozide is"
+      }
+    },
+    {
+      "section": "4.3",
+      "title": "Cholestatic",
+      "tags": [
+        "liver"
+      ],
+      "text": "4.3 Cholestatic Jaundice/Hepatic Dysfunction Clarithromycin tablets are contraindicated in patients with a history of cholestatic jaundice or hepatic dysfunction associated with prior use of clarithromycin.",
+      "source": {
+        "field": "contraindications",
+        "char_start": 1132,
+        "char_end": 1339,
+        "truncated": false,
+        "header_preview": "4.3 Cholestatic Jaundice/Hepatic Dysfunction Clarithromycin tablets are contraindicated in patients with a his"
+      }
+    },
+    {
+      "section": "4.4",
+      "title": "Colchicine",
+      "tags": [
+        "CYP3A",
+        "interaction",
+        "liver",
+        "renal"
+      ],
+      "text": "4.4 Colchicine Concomitant administration of clarithromycin tablets and colchicine is contraindicated in patients with renal or hepatic impairment.",
+      "source": {
+        "field": "contraindications",
+        "char_start": 1339,
+        "char_end": 1487,
+        "truncated": false,
+        "header_preview": "4.4 Colchicine Concomitant administration of clarithromycin tablets and colchicine is contraindicated in patie"
+      }
+    },
     {
       "section": "4.5",
       "title": "Lomitapide, Lovastatin, and Simvastatin",
@@ -32,12 +110,59 @@
       }
     },
     {
+      "section": "4.6",
+      "title": "Ergot",
+      "tags": [
+        "CYP3A",
+        "interaction"
+      ],
+      "text": "4.6 Ergot Alkaloids Concomitant administration of clarithromycin and ergotamine or dihydroergotamine is contraindicated [see Drug Interactions ( 7 )] .",
+      "source": {
+        "field": "contraindications",
+        "char_start": 2061,
+        "char_end": 2213,
+        "truncated": false,
+        "header_preview": "4.6 Ergot Alkaloids Concomitant administration of clarithromycin and ergotamine or dihydroergotamine is contra"
+      }
+    },
+    {
+      "section": "4.7",
+      "title": "Lurasidone",
+      "tags": [
+        "CYP3A",
+        "interaction"
+      ],
+      "text": "4.7 Lurasidone Concomitant administration of clarithromycin and lurasidone is contraindicated since it may result in an increase in lurasidone exposure and the potential for serious adverse reactions [see Drug Interactions ( 7 ) ].",
+      "source": {
+        "field": "contraindications",
+        "char_start": 2213,
+        "char_end": 2445,
+        "truncated": false,
+        "header_preview": "4.7 Lurasidone Concomitant administration of clarithromycin and lurasidone is contraindicated since it may res"
+      }
+    },
+    {
+      "section": "4.8",
+      "title": "Contraindications for",
+      "tags": [
+        "indication"
+      ],
+      "text": "4.8 Contraindications for Co-administered Drugs For information about contraindications of other drugs indicated in combination with clarithromycin tablets, refer to their full prescribing information (contraindications section).",
+      "source": {
+        "field": "contraindications",
+        "char_start": 2445,
+        "char_end": 2674,
+        "truncated": false,
+        "header_preview": "4.8 Contraindications for Co-administered Drugs For information about contraindications of other drugs indicat"
+      }
+    },
+    {
       "section": "7",
       "title": "Drug Interactions - lipid-lowering agents",
       "tags": [
         "CYP3A",
-        "interaction",
-        "monitoring"
+        "dosing",
+        "interaction"
       ],
       "text": "Lipid-lowering agents: Lomitapide Lovastatin Simvastatin Contraindicated Lomitapide, Lovastatin, Simvastatin: Clarithromycin may increase the exposure of these drugs by inhibition of CYP3A metabolism, thereby increasing the risk of toxicities from these drugs [see Contraindications ( 4.5 ) and Warnings and Precautions ( 5.4 )] Atorvastatin, Pravastatin, Fluvastatin: [See Warnings and Precautions ( 5.4 )] Atorvastatin Pravastatin Use With Caution Fluvastatin No Dose Adjustment Hypoglycemic Agents: Nateglinide Pioglitazone Repaglinide Rosiglitazone Use With Caution Nateglinide, Pioglitazone, Repaglinide, Rosiglitazone: [See Warnings and Precautions ( 5.4 ) and Adverse Reactions ( 6.2 )] Insulin Insulin: [See Warnings and Precautions ( 5.4 ) and Adverse Reactions ( 6.2 )] Immunosuppressants: Cyclosporine Use With Caution Cyclosporine: There have been spontaneous or published reports of CYP3A based interactions of clarithromycin with cyclosporine. Tacrolimus Tacrolimus: There have been spontaneous or published reports of CYP3A based interactions of clarithromycin with tacrolimus. Phosphodiesterase inhibitors: Sildenafil Tadalafil Vardenafil Use With Caution Sildenafil, Tadalafil, Vardenafil: Each of these phosphodiesterase inhibitors is primarily metabolized by CYP3A, and CYP3A will be inhibited by concomitant administration of clarithromycin.",
       "source": {
@@ -49,19 +174,37 @@
       }
     },
     {
-      "section": "4.4",
-      "title": "Colchicine",
+      "section": "2",
+      "title": "DOSAGE",
       "tags": [
+        "CYP3A",
+        "dosing",
         "interaction",
+        "pediatric",
         "renal"
       ],
-      "text": "4.4 Colchicine Concomitant administration of clarithromycin tablets and colchicine is contraindicated in patients with renal or hepatic impairment.",
+      "text": "2 DOSAGE AND ADMINISTRATION Adults : clarithromycin tablets 250 mg or 500 mg every 12 hours for 7 to 14 days ( 2.2 ) H. pylori eradication (in combination with lansoprazole/amoxicillin, omeprazole/amoxicillin, or omeprazole): clarithromycin tablets 500 mg every 8 or 12 hours for 10 to 14 days. See full prescribing information (FPI) for additional information. ( 2.3 ) Pediatric Patients : clarithromycin 15 mg/kg/day divided every 12 hours for 10 days ( 2.4 ) Mycobacterial Infections : clarithromycin tablets 500 mg every 12 hours; clarithromycin tablets 7.5 mg/kg up to 500 mg every 12 hours in pediatric patients ( 2.5 ) Reduce dose in moderate renal impairment with concomitant atazanavir or ritonavir-containing regimens and in severe renal impairment ( 2.6 )",
       "source": {
-        "field": "contraindications",
-        "char_start": 1339,
-        "char_end": 1487,
+        "field": "dosage_and_administration",
+        "char_start": 0,
+        "char_end": 767,
         "truncated": false,
-        "header_preview": "4.4 Colchicine Concomitant administration of clarithromycin tablets and colchicine is contraindicated in patie"
+        "header_preview": "2 DOSAGE AND ADMINISTRATION Adults : clarithromycin tablets 250 mg or 500 mg every 12 hours for 7 to 14 days ("
+      }
+    },
+    {
+      "section": "2.1",
+      "title": "Important",
+      "tags": [
+        "dosing"
+      ],
+      "text": "2.1 Important Administration Instructions Clarithromycin tablets may be given with or without food.",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 767,
+        "char_end": 867,
+        "truncated": false,
+        "header_preview": "2.1 Important Administration Instructions Clarithromycin tablets may be given with or without food. 2.2 Adult"
       }
     },
     {
@@ -70,21 +213,71 @@
       "tags": [
         "dosing"
       ],
-      "text": "2.2 Adult Dosage The recommended dosages of clarithromycin tablets for the treatment of mild to moderate infections in adults are listed in Table 1 . Table 1. Adult Dosage Guidelines Infection Clarithromycin Tablets Dosage (every 12 hours) Duration (days) Acute bacterial exacerbation of chronic bronchitis 250 to 500 mg 7 \u2020 -",
+      "text": "2.2 Adult Dosage The recommended dosages of clarithromycin tablets for the treatment of mild to moderate infections in adults are listed in Table 1 . Table 1. Adult Dosage Guidelines Infection Clarithromycin Tablets Dosage (every 12 hours) Duration (days) Acute bacterial exacerbation of chronic bronchitis 250 to 500 mg 7 \u2020 -14 Acute maxillary sinusitis 500 mg 14 Community-acquired pneumonia 250 mg 7 \u01c2 -14 Pharyngitis/Tonsillitis 250 mg 10 Uncomplicated skin and skin structure infections 250 mg 7-14 Treatment and prophylaxis of disseminated Mycobacterium avium disease [see Dosage and Administration ( 2.5 )] 500 mg \u00a7 - H.pylori eradication to reduce the risk of duodenal ulcer recurrence with amoxicillin and omeprazole or lansoprazole [see Dosage and Administration ( 2.3 )] 500 mg 10-14 H.pylori eradication to reduce the risk of duodenal ulcer recurrence with omeprazole [see Dosage and Administration ( 2.3 )] 500 mg every 8 hours 14 * For M. catarrhalis and S. pneumoniae use 250 mg. For H. influenzae and H. parainfluenzae , use 500 mg. \u2020 For H parainfluenzae , the duration of therapy is 7 days. \u01c2 For H. influenzae , the duration of therapy is 7 days. \u00a7 Clarithromycin therapy should continue if clinical response is observed. Clarithromycin can be discontinued when the patient is considered at low risk of disseminated infection.",
       "source": {
         "field": "dosage_and_administration",
         "char_start": 867,
-        "char_end": 1193,
+        "char_end": 2213,
         "truncated": false,
         "header_preview": "2.2 Adult Dosage The recommended dosages of clarithromycin tablets for the treatment of mild to moderate infec"
+      }
+    },
+    {
+      "section": "2.3",
+      "title": "Combination",
+      "tags": [
+        "dosing"
+      ],
+      "text": "2.3 Combination Dosing Regimens for H. pylori Infection Triple therapy: clarithromycin/lansoprazole/amoxicillin The recommended adult dosage is 500 mg clarithromycin tablets, 30 mg lansoprazole, and 1 gram amoxicillin, all given every 12 hours for 10 or 14 days [see Indications and Usage ( 1.8 ) and Clinical Studies ( 14.3 )] . Triple therapy: clarithromycin/omeprazole/amoxicillin The recommended adult dosage is 500 mg clarithromycin tablets, 20 mg omeprazole, and 1 gram amoxicillin; all given every 12 hours for 10 days. In patients with an ulcer present at the time of initiation of therapy, an additional 18 days of omeprazole 20 mg once daily is recommended for ulcer healing and symptom relief [see Indications and Usage ( 1.8 ) and Clinical Studies ( 14.3 )] . Dual therapy: clarithromycin/omeprazole The recommended adult dosage is 500 mg clarithromycin tablets given every 8 hours and 40 mg omeprazole given once every morning for 14 days. An additional 14 days of omeprazole 20 mg once daily is recommended for ulcer healing and symptom relief [see Indications and Usage ( 1.8 ) and Clinical Studies ( 14.3 )] .",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 2213,
+        "char_end": 3339,
+        "truncated": false,
+        "header_preview": "2.3 Combination Dosing Regimens for H. pylori Infection Triple therapy: clarithromycin/lansoprazole/amoxicilli"
+      }
+    },
+    {
+      "section": "2.4",
+      "title": "Pediatric",
+      "tags": [
+        "dosing",
+        "pediatric"
+      ],
+      "text": "2.4 Pediatric Dosage The recommended daily dosage is 15 mg/kg/day divided every 12 hours for 10 days (up to the adult dose). Refer to dosage regimens for mycobacterial infections in pediatric patients for additional dosage information [see Dosage and Administration ( 2.5 )] .",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 3339,
+        "char_end": 3616,
+        "truncated": false,
+        "header_preview": "2.4 Pediatric Dosage The recommended daily dosage is 15 mg/kg/day divided every 12 hours for 10 days (up to th"
+      }
+    },
+    {
+      "section": "2.5",
+      "title": "Dosage",
+      "tags": [
+        "dosing",
+        "pediatric"
+      ],
+      "text": "2.5 Dosage Regimens for Mycobacterial Infections For the treatment of disseminated infection due to Mycobacterium avium complex (MAC), clarithromycin tablets are recommended as the primary agents. Clarithromycin tablets should be used in combination with other antimycobacterial drugs (e.g. ethambutol) that have shown in vitro activity against MAC or clinical benefit in MAC treatment [see Clinical Studies ( 14.1 )]. Adult Patients For treatment and prophylaxis of mycobacterial infections in adults, the recommended dose of clarithromycin tablets is 500 mg every 12 hours. Pediatric Patients For treatment and prophylaxis of mycobacterial infections in pediatric patients, the recommended dose is 7.5 mg/kg every 12 hours up to 500 mg every 12 hours. [See Use in Specific Populations ( 8.4 ) and Clinical Studies ( 14.1 )] . Clarithromycin tablets therapy should continue if clinical response is observed. Clarithromycin tablets can be discontinued when the patient is considered at low risk of disseminated infection.",
+      "source": {
+        "field": "dosage_and_administration",
+        "char_start": 3616,
+        "char_end": 4638,
+        "truncated": false,
+        "header_preview": "2.5 Dosage Regimens for Mycobacterial Infections For the treatment of disseminated infection due to Mycobacter"
       }
     },
     {
       "section": "2.6",
       "title": "Dosage Adjustment in Patients with Renal Impairment",
       "tags": [
-        "renal",
-        "dosing"
+        "CYP3A",
+        "dosing",
+        "interaction",
+        "older-adults",
+        "renal"
       ],
       "text": "2.6 Dosage Adjustment in Patients with Renal Impairment See Table 2 for dosage adjustment in patients with moderate or severe renal impairment with or without concomitant atazanavir or ritonavir-containing regimens [see Drug Interactions ( 7 )]. Table 2. Clarithromycin Tablets Dosage Adjustments in Patients with Renal Impairment Recommended Clarithromycin Tablets Dosage Reduction Patients with severe renal impairment (CL cr of <30 mL/min) Reduce the dosage of clarithromycin tablets by 50% Patients with moderate renal impairment (CL cr of 30 to 60 mL/min) taking concomitant atazanavir or ritonavir-containing regimens Reduce the dosage of clarithromycin tablets by 50% Patients with severe renal impairment (CL cr of <30 mL/min) taking concomitant atazanavir or ritonavir-containing regimens Reduce the dosage of clarithromycin tablets by 75%",
       "source": {
@@ -99,8 +292,7 @@
       "section": "2.7",
       "title": "Dosage Adjustment Due to Drug Interactions",
       "tags": [
-        "dosing",
-        "interaction"
+        "dosing"
       ],
       "text": "2.7 Dosage Adjustment Due to Drug Interactions Decrease the dose of clarithromycin tablets by 50 % when co-administered with atazanavir [see Drug Interactions ( 7 )] . Dosage adjustments for other drugs when co-administered with clarithromycin tablets may be recommended due to drug interactions [see Drug Interactions ( 7 )] .",
       "source": {
@@ -112,10 +304,57 @@
       }
     },
     {
+      "section": "1",
+      "title": "INDICATIONS",
+      "tags": [
+        "indication",
+        "pediatric"
+      ],
+      "text": "1 INDICATIONS AND USAGE Clarithromycin is a macrolide antimicrobial indicated for mild to moderate infections caused by designated, susceptible bacteria in the following: Acute Bacterial Exacerbation of Chronic Bronchitis in Adults ( 1.1 ) Acute Maxillary Sinusitis ( 1.2 ) Community-Acquired Pneumonia ( 1.3 ) Pharyngitis/Tonsillitis ( 1.4 ) Uncomplicated Skin and Skin Structure Infections ( 1.5 ) Acute Otitis Media in Pediatric Patients ( 1.6 ) Treatment and Prophylaxis of Disseminated Mycobacterial Infections ( 1.7 ) Helicobacter pylori Infection and Duodenal Ulcer Disease in Adults ( 1.8 ) Limitations of Use To reduce the development of drug-resistant bacteria and maintain the effectiveness of clarithromycin tablets and other antibacterial drugs, clarithromycin tablets should be used only to treat or prevent infections that are proven or strongly suspected to be caused by bacteria. ( 1.9 )",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 0,
+        "char_end": 905,
+        "truncated": false,
+        "header_preview": "1 INDICATIONS AND USAGE Clarithromycin is a macrolide antimicrobial indicated for mild to moderate infections"
+      }
+    },
+    {
+      "section": "1.1",
+      "title": "Acute",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.1 Acute Bacterial Exacerbation of Chronic Bronchitis Clarithromycin tablets are indicated in adults for the treatment of mild to moderate infections caused by susceptible isolates due to Haemophilus influenzae , Haemophilus parainfluenzae , Moraxella catarrhalis , or Streptococcus pneumoniae [see Indications and Usage ( 1.9 )] .",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 905,
+        "char_end": 1238,
+        "truncated": false,
+        "header_preview": "1.1 Acute Bacterial Exacerbation of Chronic Bronchitis Clarithromycin tablets are indicated in adults for the"
+      }
+    },
+    {
+      "section": "1.2",
+      "title": "Acute",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.2 Acute Maxillary Sinusitis Clarithromycin tablets are indicated for the treatment of mild to moderate infections caused by susceptible isolates due to Haemophilus influenzae , Moraxella catarrhalis , or Streptococcus pneumoniae [see Indications and Usage ( 1.9 )] .",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 1238,
+        "char_end": 1507,
+        "truncated": false,
+        "header_preview": "1.2 Acute Maxillary Sinusitis Clarithromycin tablets are indicated for the treatment of mild to moderate infec"
+      }
+    },
+    {
       "section": "1.3",
       "title": "Community-Acquired Pneumonia",
       "tags": [
-        "indication"
+        "indication",
+        "pediatric"
       ],
       "text": "1.3 Community-Acquired Pneumonia Clarithromycin tablets are indicated [see Indications and Usage ( 1.9 )] for the treatment of mild to moderate infections caused by susceptible isolates due to: Haemophilus influenzae (in adults) Mycoplasma pneumoniae, Streptococcus pneumoniae, Chlamydophila pneumoniae (in adults and pediatric patients)",
       "source": {
@@ -127,9 +366,118 @@
       }
     },
     {
+      "section": "1.4",
+      "title": "Pharyngitis/Tonsillitis",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.4 Pharyngitis/Tonsillitis Clarithromycin tablets are indicated for the treatment of mild to moderate infections caused by susceptible isolates due to Streptococcus pyogenes as an alternative in individuals who cannot use first line therapy.",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 1845,
+        "char_end": 2088,
+        "truncated": false,
+        "header_preview": "1.4 Pharyngitis/Tonsillitis Clarithromycin tablets are indicated for the treatment of mild to moderate infecti"
+      }
+    },
+    {
+      "section": "1.5",
+      "title": "Uncomplicated",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.5 Uncomplicated Skin and Skin Structure Infections Clarithromycin tablets are indicated for the treatment of mild to moderate infections caused by susceptible isolates due to Staphylococcus aureus , or S treptococcus pyogenes .",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 2088,
+        "char_end": 2318,
+        "truncated": false,
+        "header_preview": "1.5 Uncomplicated Skin and Skin Structure Infections Clarithromycin tablets are indicated for the treatment of"
+      }
+    },
+    {
+      "section": "1.6",
+      "title": "Acute",
+      "tags": [
+        "indication",
+        "pediatric"
+      ],
+      "text": "1.6 Acute Otitis Media Clarithromycin tablets are indicated in pediatric patients for the treatment of mild to moderate infections caused by susceptible isolates due to Haemophilus influenzae , Moraxella catarrhalis , or Streptococcus pneumoniae [see Clinical Studies ( 14.2 )] .",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 2318,
+        "char_end": 2598,
+        "truncated": false,
+        "header_preview": "1.6 Acute Otitis Media Clarithromycin tablets are indicated in pediatric patients for the treatment of mild to"
+      }
+    },
+    {
+      "section": "1.7",
+      "title": "Treatment and",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.7 Treatment and Prophylaxis of Disseminated Mycobacterial Infections Clarithromycin tablets are indicated for the treatment of mild to moderate infections caused by susceptible isolates due to Mycobacterium avium or Myc obacterium intracellulare in patients with advanced HIV infection [see Clinical Studies ( 14.1 )] .",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 2598,
+        "char_end": 2920,
+        "truncated": false,
+        "header_preview": "1.7 Treatment and Prophylaxis of Disseminated Mycobacterial Infections Clarithromycin tablets are indicated fo"
+      }
+    },
+    {
+      "section": "1.8",
+      "title": "Helicobacter pylori",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.8 Helicobacter pylori Infection and Duodenal Ulcer Disease Clarithromycin tablets are given in combination with other drugs in adults as described below to eradicate H. pylori . The eradication of H. pylori has been demonstrated to reduce the risk of duodenal ulcer recurrence [see Clinical Studies ( 14.3 )] . Clarithromycin tablets in combination with amoxicillin and PREVACID (lansoprazole) or PRILOSEC (omeprazole) delayed-release capsules, as triple therapy, are indicated for the treatment of patients with H. pylori infection and duodenal ulcer disease (active or five-year history of duodenal ulcer) to eradicate H. pylori . Clarithromycin tablets in combination with PRILOSEC (omeprazole) capsules are indicated for the treatment of patients with an active duodenal ulcer associated with H. pylori infection. Regimens which contain clarithromycin tablets as the single antibacterial agent are more likely to be associated with the development of clarithromycin resistance among patients who fail therapy. Clarithromycin-containing regimens should not be used in patients with known or suspected clarithromycin resistant isolates because the efficacy of treatment is reduced in this setting.",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 2920,
+        "char_end": 4122,
+        "truncated": false,
+        "header_preview": "1.8 Helicobacter pylori Infection and Duodenal Ulcer Disease Clarithromycin tablets are given in combination w"
+      }
+    },
+    {
+      "section": "1.9",
+      "title": "Limitations of",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.9 Limitations of Use There is resistance to macrolides in certain bacterial infections caused by Streptococcus pneumoniae and Staphylococcus aureus . Susceptibility testing should be performed when clinically indicated.",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 4122,
+        "char_end": 4344,
+        "truncated": false,
+        "header_preview": "1.9 Limitations of Use There is resistance to macrolides in certain bacterial infections caused by Streptococc"
+      }
+    },
+    {
+      "section": "1.10",
+      "title": "Usage",
+      "tags": [
+        "indication"
+      ],
+      "text": "1.10 Usage To reduce the development of drug-resistant bacteria and maintain the effectiveness of clarithromycin and other antibacterial drugs, clarithromycin tablets should be used only to treat or prevent infections that are proven or strongly suspected to be caused by susceptible bacteria. When culture and susceptibility information are available, they should be considered in selecting or modifying antibacterial therapy. In the absence of such data, local epidemiology and susceptibility patterns may contribute to the empiric selection of therapy.",
+      "source": {
+        "field": "indications_and_usage",
+        "char_start": 4344,
+        "char_end": 4899,
+        "truncated": false,
+        "header_preview": "1.10 Usage To reduce the development of drug-resistant bacteria and maintain the effectiveness of clarithromyc"
+      }
+    },
+    {
       "section": "8.5",
       "title": "Geriatric Use",
       "tags": [
+        "CYP3A",
+        "dosing",
+        "interaction",
         "older-adults",
         "renal"
       ],

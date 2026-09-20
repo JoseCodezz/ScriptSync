@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -74,9 +75,9 @@ def _render_sections(sections: list[dict[str, Any]]) -> str:
 # vocabulary in assistant/merge.py so the fallback and the gap detector agree.
 TAG_SYNONYMS = {
     "CYP3A": ["cyp3a", "cyp 3a", "interaction", "interact", "co-prescribe", "coadminist",
-              "together", "combine", "concomitant"],
+              "together", "combine", "concomitant", "same time", "at once"],
     "interaction": ["interaction", "interact", "co-prescribe", "coadminist", "concomitant",
-                    "together", "combine"],
+                    "together", "combine", "same time", "at once"],
     "dosing": ["dose", "dosing", "dosage", "how much", "mg", "titrate", "start"],
     "indication": ["indicated", "indication", "treat", "used for", "approved for"],
     "monitoring": ["monitor", "check", "follow up", "watch", "lab", "enzyme"],
@@ -88,17 +89,58 @@ TAG_SYNONYMS = {
 }
 
 
-def keyword_select(question: str, sections: list[dict[str, Any]]) -> Selection:
-    """Deterministic fallback used when the model cannot be reached."""
-    text = question.lower()
+def _contains_word(text: str, word: str) -> bool:
+    """Whole-word containment, not substring: plain `in` would let the tag
+    "indication" match inside "contraindications" - a real false positive this
+    caught (see keyword_select's docstring test)."""
+    return re.search(rf"\b{re.escape(word)}\b", text) is not None
+
+
+_MED_LIST_LINE = re.compile(r"(?im)^\s*current medications\s*:\s*(.+)$")
+
+
+def _current_medications(patient_context: str | None) -> list[str]:
+    """Just the drug names out of a "Current medications: ..." line in patient
+    context (see web/patient-context-template.txt), if present. Deliberately
+    narrow - only the structured field a doctor was told to put drug names in,
+    not any other line of free text."""
+    if not patient_context:
+        return []
+    match = _MED_LIST_LINE.search(patient_context)
+    if not match:
+        return []
+    return [name.strip() for name in re.split(r"[,;]", match.group(1)) if len(name.strip()) >= 4]
+
+
+def keyword_select(question: str, sections: list[dict[str, Any]], patient_context: str | None = None) -> Selection:
+    """Deterministic fallback used when the model cannot be reached. Patient
+    context (age, renal/liver function, current medications - never an
+    identifier, see web/patient-context-template.txt) is matched the same way
+    the question itself is: e.g. "Renal function: severe impairment" hits the
+    "renal" tag exactly like a clinician typing "renal" in the question would.
+
+    A named current medication gets one thing more: it's checked against a
+    section's own verbatim TEXT, not just its title. Matching arbitrary
+    context wording against body text is exactly the false positive this
+    function's title-only rule exists to avoid (see below) - but a specific
+    drug name doesn't carry that risk the way generic wording does, which is
+    the same reasoning that makes an exact name-field search better than a
+    free-text one (common/fda_data.py's _build_precise_search). Only the
+    "Current medications" field gets this - not "Relevant history" or any
+    other free text - so the risk stays scoped to names, not prose.
+    """
+    text = f"{question}\n{patient_context or ''}".lower()
+    meds = [name.lower() for name in _current_medications(patient_context)]
 
     def matches(section: dict[str, Any]) -> bool:
         for tag in section["tags"]:
-            if tag.lower() in text:
+            if _contains_word(text, tag.lower()):
                 return True
-            if any(word in text for word in TAG_SYNONYMS.get(tag, [])):
+            if any(_contains_word(text, word) for word in TAG_SYNONYMS.get(tag, [])):
                 return True
-        return any(word in text for word in section["title"].lower().split() if len(word) > 5)
+        if any(_contains_word(text, word) for word in section["title"].lower().split() if len(word) > 5):
+            return True
+        return any(_contains_word(section["text"].lower(), med) for med in meds)
 
     hits = [s["section"] for s in sections if matches(s)]
     if not hits:
@@ -156,4 +198,4 @@ async def select(
             "Model selection failed (%s: %s); using keyword fallback",
             type(exc).__name__, exc,
         )
-        return keyword_select(question, sections), f"keyword-fallback ({type(exc).__name__})"
+        return keyword_select(question, sections, patient_context), f"keyword-fallback ({type(exc).__name__})"

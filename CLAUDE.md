@@ -15,7 +15,7 @@ A doctor asks a drug question in a chat. Each drug has a small label agent that 
 - Answers are VERBATIM quotes from public FDA label text (DailyMed / openFDA) with section, label version and date. No paraphrasing, no invented claims. The UI may set a label's own headings apart but never changes a character of a quote (`tests/ui_smoke.py` checks this).
 - Agents are OURS: "demo agent serving the public DailyMed label, not operated by the manufacturer". Never impersonate a real company. Attackers claim to be our demo agents.
 - Real drugs, generic names, no company branding anywhere. Do NOT invent fictional drugs or label text.
-- No patient data / PHI anywhere. The assistant refuses text that looks like patient identifiers and never stores question text.
+- No patient data / PHI anywhere. The assistant refuses text that looks like patient identifiers and never stores question text. The one exception is `patientContext` (age range, renal/liver function, current meds - see `web/patient-context-template.txt`): non-identifying clinical parameters only, still run through the same identifier check, never logged (not even a fingerprint) or persisted client-side.
 - Be honest about live vs cached vs simulated (see "Verification: what is real"). Say so in the demo and on Devpost. Never let the UI or /health claim more than is true.
 - Never commit secrets: `.env`, `keys/` (agent private keys), API keys. Both are gitignored.
 
@@ -23,7 +23,7 @@ A doctor asks a drug question in a chat. Each drug has a small label agent that 
 | Area | State |
 | --- | --- |
 | Doctor assistant (`assistant/`) | Done: ask flow, question understanding, PHI guard, overlap/gap logic, rules, handoff drafts, audit log, parallel verification. |
-| Brand agents (`brand_agent/`, `labels/`) | Done: simvastatin + clarithromycin, 15 verbatim passages (re-checked against live openFDA), signed answers, Ed25519 identity. Claude picks sections only if `ANTHROPIC_API_KEY` is set; otherwise keyword matching (`selectionMode` says which). |
+| Brand agents (`brand_agent/`, `labels/`) | Done: simvastatin + clarithromycin, verbatim passages auto-discovered from every numbered contraindications/interactions/dosing/indications/geriatric-use section (not hand-picked - `scripts/build_label.py`), topic tags inferred the same way, signed answers, Ed25519 identity. Claude picks sections only if `ANTHROPIC_API_KEY` is set; otherwise keyword matching (`selectionMode` says which). |
 | Identity verification | **Partly live**: DNS key lookup + signed challenge are real; registry log + revocation are simulated. See below, including the key problem. |
 | Web UI (`web/`) | Done: chat, Sources/Rules/Activity panels, presenter demo guide, readable answers. |
 | Node `ans-verify` (unmerged) | Parked: `src/server.ts` is still a stub; it overlaps the Python verifier. Decide whether to drop it. |
@@ -47,7 +47,7 @@ A doctor asks a drug question in a chat. Each drug has a small label agent that 
 - Real drugs, real label text, quoted verbatim. Fictional drugs were rejected (invented text is an invented medical claim). The risk is impersonating a company, not naming a drug: generic drug names only, no manufacturer names, brands or logos in the UI, agent names, config or slides.
 - Drug pair: **simvastatin + clarithromycin**. Each label independently names the other as a contraindication (simvastatin §4; clarithromycin §4.5), so two agents that never talk converge on the same finding, and a judge can check both on DailyMed.
 - Agent naming: by drug + text source. UI: "Simvastatin label agent". ANS-style name: `a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync.health`. Domain `scriptsync.health` is ours, registered at Porkbun.
-- "Not covered" means "outside the hand-picked passages these agents serve" (6-8 sections per label), NOT "the FDA label is silent". Say so in the pitch; the UI does.
+- "Not covered" means "outside the sections auto-discovered from the fields these agents scan" (contraindications, interactions, dosing, indications, geriatric use), NOT "the FDA label is silent" - a topic in a field outside that scan (e.g. pregnancy/lactation) still says "Not covered" even if the real label addresses it. Say so in the pitch; the UI does.
 - Each question is answered on its own (no chat memory), so a follow-up like "and for kidneys?" does not know the drug. The composer says so.
 
 ## Architecture
@@ -92,7 +92,7 @@ Story: a doctor can't tell whether a message claiming to be from a manufacturer 
 1. **Problem (~20s):** drug information comes from many sources with no easy way to tell which are genuine. Impiricus angle: a next-generation HCP engagement tool that is not SMS.
 2. **Idea (~20s):** each drug's label agent answers only from its own approved label and signs the answer. The doctor's assistant accepts content only from agents whose identity checks out.
 3. **Live demo (~90s), using the presenter guide (`?demo=1`, needs `start_all.ps1` demo mode):** interaction question (two verified answers + overlap); a gap (pregnancy: "Not covered"); switching (advice notice + gaps); an impostor arriving inside a normal answer, blocked before any text shows; Rules (turn a brand off, ask again: skipped); Activity and export; patient details refused; what's live vs simulated.
-4. **Say what is real, before anyone asks (~20s):** two of four identity checks are live (DNS key + signed challenge); registry log and revocation are simulated; answer signing uses a demo key; label text is a cached snapshot of the current FDA label; "Not covered" means outside our curated passages. Same wording on Devpost.
+4. **Say what is real, before anyone asks (~20s):** two of four identity checks are live (DNS key + signed challenge); registry log and revocation are simulated; answer signing uses a demo key; label text is a cached snapshot of the current FDA label; "Not covered" means outside the fields these agents scan (contraindications, interactions, dosing, indications, geriatric use), not that the label is silent. Same wording on Devpost.
 5. **Close (~20s):** in production each manufacturer runs its own agent under its own domain; the doctor's side needs no changes.
 - GoDaddy angle: identity comes from a domain record, a key and a signed challenge, and impostors stop at that step. Say "ANS-style" unless real ANS integration lands.
 - Never say the tool recommends anything. Do not call the agents "AI agents" unless `ANTHROPIC_API_KEY` is actually on (check `/health` on an agent: `selection`).

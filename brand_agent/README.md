@@ -47,25 +47,54 @@ a string present in the label file.
 
 **No API key?** `selector.py` falls back to deterministic keyword matching and
 the demo still runs — the response carries `selectionMode: "keyword-fallback"`
-so it is never silently degraded. Both paths were tested.
+so it is never silently degraded. Both paths were tested. Patient context
+(`patientContext` - age, renal/liver function, current medications; see
+`web/patient-context-template.txt`) works in fallback mode too: it's matched
+the same way the question is (tags, then title words), plus one extra step -
+a named "Current medications" drug is checked against a section's own
+verbatim text, not just its title, since a specific drug name doesn't carry
+the false-positive risk that ruled out body-text matching for everything
+else. This is genuinely the path this demo runs on without a real key, not
+just a safety net - worth saying so explicitly when presenting it.
 
 ## Label data
 
-`labels/*.json` is built by `scripts/build_label.py` from openFDA. Rules it
-enforces:
+`labels/*.json` is built by `scripts/build_label.py` from openFDA. Sections are
+**auto-discovered, not hand-picked**: every numbered section in the
+contraindications, drug interactions, dosing, indications, and geriatric-use
+fields becomes its own passage, whatever its number. `scripts/build_label.py`'s
+`KNOWN` dict still seeds a hand-verified title (and, for a couple of unusually
+long sections, an anchor point past their preamble) for the sections someone
+already looked at closely - but it no longer gates what gets extracted the way
+the old hand-picked recipe list did. Rules it enforces:
 
 - Passages are **verbatim contiguous slices** of the SPL. No paraphrase, no
   hand-written text.
 - Section numbers and titles are read from the label's own headers, so a passage
-  cannot be filed under a section it did not come from. Each passage stores
-  `source.header_preview` — the label's real header — so the display title can
-  be checked against it.
+  cannot be filed under a section it did not come from. A header has to sit at
+  a real clause boundary and not be immediately followed by a unit word
+  ("10 Years", "40 mg") - both catch numbers embedded in running prose or a
+  flattened table that would otherwise look like a header. Each passage stores
+  `source.header_preview` — the label's real header — so a KNOWN display title
+  can be checked against it.
 - Every passage records `field`, `char_start`, `char_end`, so any quote can be
   re-derived from openFDA. That is what `VERIFY_VERBATIM=1` does.
-- Tags use the exact spellings in CLAUDE.md; `assistant/merge.py` keys overlap
-  and gap detection off them. The test fails on an unknown tag.
+- Tags are **inferred**, not hand-typed: `_infer_tags` reuses
+  `brand_agent/selector.py`'s `TAG_SYNONYMS` (the same words a clinician's
+  question is matched against) against each passage's own text, plus a
+  field-level hint (anything in `dosage_and_administration` is at least
+  "dosing", etc.). Tags use the exact spellings in CLAUDE.md; `assistant/merge.py`
+  keys overlap and gap detection off them. The test fails on an unknown tag.
 
-To re-pull after a label update: `python scripts/build_label.py`.
+To re-pull after a label update: `python scripts/build_label.py`. Running an
+agent (`python -m brand_agent ...`) also does this itself, occasionally: it
+checks staleness at startup and every `FDA_REFRESH_CHECK_HOURS` (default 6h)
+after that, and only actually re-fetches when the cached label is older than
+`FDA_REFRESH_MAX_AGE_HOURS` (default 24h) - see `scripts/build_label.py`'s
+`refresh_if_stale`. A failed fetch just keeps serving the existing cached
+label; it never crashes the agent. `service.py` re-reads `labels/<drug>.json`
+off disk on a 60s TTL, so a background refresh reaches a running agent without
+a restart.
 
 ## Wire contract
 
@@ -150,6 +179,8 @@ CLAUDE.md applies.
 - `dev/mock_agent.py` still serves the attackers on 9101-9104. Pass the
   attacker's ANS name explicitly, e.g.
   `--name "a2a://labelAgent.drugInfo.simvastatin.v1.0.0.scriptsync-labels.example"`.
-- Simvastatin's SPL has no renal dosing section and clarithromycin's does. Ask
-  about kidneys and you get one answer plus one honest "not covered" — a real
-  demonstration of gap detection rather than a staged one.
+- Now that every numbered section is auto-discovered rather than hand-picked,
+  simvastatin's own §2.4 renal-dosing section surfaces too - the old "ask about
+  kidneys and simvastatin says not covered" demo beat no longer holds. Pick a
+  genuinely uncovered topic (pregnancy still works for both) if you need a
+  live "not covered" moment.

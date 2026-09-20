@@ -43,16 +43,36 @@ class ChallengeRequest(BaseModel):
 
 
 def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI:
-    label = json.loads(label_path.read_text())
-    meta, agent_meta = label["_meta"], label["agent"]
-    drug = agent_meta["drug"]
-    sections = label["sections"]
-    by_number = {s["section"]: s for s in sections}
+    initial = json.loads(label_path.read_text())
+    drug = initial["agent"]["drug"]
+
+    # scripts/build_label.py rewrites this file on disk in the background
+    # (started from brand_agent/__main__.py) whenever the cached label goes
+    # stale. Re-reading it here on a short TTL - same pattern as anchor_status()
+    # below for DNS - lets a long-running agent pick up a refreshed label
+    # without a restart, while still only touching disk a few times a minute.
+    _label_cache: dict[str, tuple[float, dict]] = {}
+    LABEL_TTL_SECONDS = 60.0
+
+    def current_label() -> dict:
+        cached = _label_cache.get("v")
+        now = time.monotonic()
+        if cached and now - cached[0] < LABEL_TTL_SECONDS:
+            return cached[1]
+        try:
+            label = json.loads(label_path.read_text())
+        except Exception:
+            # Mid-write or transient read error: keep serving the last good copy.
+            if cached:
+                return cached[1]
+            raise
+        _label_cache["v"] = (now, label)
+        return label
 
     ans_name = ANSName.build(drug, domain, version)
     identity = AgentIdentity.load_or_create(ans_name)
 
-    app = FastAPI(title=agent_meta["displayName"], version=version)
+    app = FastAPI(title=initial["agent"]["displayName"], version=version)
 
     # /identity is on the hot path for every verification. Resolving on each
     # call would re-pay the DNS cost, and - when DNS is slow or blocked - stall
@@ -74,6 +94,8 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
 
     @app.get("/identity")
     async def get_identity() -> dict:
+        label = current_label()
+        meta, agent_meta = label["_meta"], label["agent"]
         anchored, detail = await anchor_status()
         return {
             # The assistant reads only agentName; the rest is for ANS verification.
@@ -133,11 +155,17 @@ def build_app(label_path: Path, domain: str, version: str = "v1.0.0") -> FastAPI
 
     @app.get("/health")
     async def health() -> dict:
+        label = current_label()
         return {"ok": True, "agent": ans_name.full, "drug": drug,
-                "sections": len(sections), "selection": selection_mode()}
+                "sections": len(label["sections"]), "selection": selection_mode()}
 
     @app.post("/answer")
     async def answer(request: AnswerRequest) -> dict:
+        label = current_label()
+        sections = label["sections"]
+        by_number = {s["section"]: s for s in sections}
+        agent_meta = label["agent"]
+
         selection, mode = await select(
             request.question, request.patientContext, drug, sections
         )

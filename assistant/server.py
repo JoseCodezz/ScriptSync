@@ -21,11 +21,15 @@ try:
 except ImportError:  # python-dotenv is in requirements.txt; without it .env is silently ignored
     print("WARNING: python-dotenv is not installed, so .env was NOT loaded. Run: pip install -r requirements.txt")
 
+import sys  # noqa: E402
+sys.path.insert(0, str(ROOT))  # allow `from scripts.build_label import ...`
+
 from assistant import log as auditlog  # noqa: E402
 from assistant.merge import merge_results
 from assistant.understand import analyze, build_notices, drug_gaps, find_phi
 from assistant.verify import describe_verification, is_agent_verified
 from common.signing import SIGNING_MODE, check_freshness, verify_signature
+from scripts.build_label import DEFAULT_MAX_AGE_HOURS, label_age_hours, refresh_if_stale
 
 # Brand agents call a model to choose label sections, so responses take a few
 # seconds - the old 5s ceiling was written for the instant mock agents and made
@@ -52,9 +56,12 @@ def load_rules() -> dict:
 
 
 # ---------- talking to one agent ----------
-async def call_agent(agent: dict, question: str) -> dict:
+async def call_agent(agent: dict, question: str, patient_context: str | None = None) -> dict:
+    body = {"question": question}
+    if patient_context:
+        body["patientContext"] = patient_context
     async with httpx.AsyncClient(timeout=AGENT_TIMEOUT) as client:
-        r = await client.post(agent["endpoint"].rstrip("/") + "/answer", json={"question": question})
+        r = await client.post(agent["endpoint"].rstrip("/") + "/answer", json=body)
         r.raise_for_status()
         return r.json()
 
@@ -73,7 +80,7 @@ def _blocked(agent, verification, reason, failed_ids, hidden, event):
             "hiddenContent": hidden}
 
 
-async def query_agent(agent: dict, question: str) -> dict:
+async def query_agent(agent: dict, question: str, patient_context: str | None = None) -> dict:
     """Verify first, then ask, then check signature + freshness (Section 7.2)."""
     # Verification does blocking network work (DNS, a challenge to the agent). Run it in a
     # worker thread so it cannot freeze the server, and so agents are checked in parallel.
@@ -85,14 +92,14 @@ async def query_agent(agent: dict, question: str) -> dict:
     if not v["ok"]:
         hidden = None
         try:  # only so judges can see what the impostor tried to say
-            hidden = (await call_agent(agent, question)).get("answers")
+            hidden = (await call_agent(agent, question, patient_context)).get("answers")
         except Exception:
             pass
         reason = "Identity check failed: " + "; ".join(c["message"] for c in failed)
         return _blocked(agent, v, reason, [c["id"] for c in failed], hidden, "verify_failed")
 
     try:
-        resp = await call_agent(agent, question)
+        resp = await call_agent(agent, question, patient_context)
     except Exception as e:
         auditlog.log_event("agent_error", agent["ansName"], "unreachable", type(e).__name__)
         return {**_base(agent), "status": "unreachable", "verification": v,
@@ -126,6 +133,12 @@ async def query_agent(agent: dict, question: str) -> dict:
 # ---------- API ----------
 class AskRequest(BaseModel):
     question: str = ""
+    # Optional, non-identifying clinical context (age range, renal/liver
+    # function, current medications - see web/patient-context-template.txt).
+    # Never logged or stored: used only to pick better sections for this one
+    # question, then discarded. Still run through reject_phi() below in case
+    # someone pastes a real identifier into it by mistake.
+    patientContext: str | None = None
 
 
 @app.get("/health")
@@ -152,11 +165,18 @@ async def ask(req: AskRequest):
     if not question:
         raise HTTPException(status_code=400, detail="Please type a question.")
     reject_phi(question)
+    patient_context = (req.patientContext or "").strip() or None
+    if patient_context:
+        reject_phi(patient_context)  # non-identifying by policy, but check in case someone pastes a real one
     agents = load_agents()
     analysis = analyze(question, agents)
-    # The question text itself is never stored (it could hold something sensitive):
-    # only its length and a short fingerprint.
-    auditlog.log_event("ask", "doctor", "received", f"question received ({len(question)} characters; text not stored)", question)
+    # Neither the question nor patient context is ever stored (either could
+    # hold something sensitive): only the question's length and a fingerprint,
+    # and only whether context was present at all - never its content or even
+    # a fingerprint of it.
+    auditlog.log_event("ask", "doctor", "received",
+                       f"question received ({len(question)} characters; text not stored)"
+                       + (", with patient context (not stored)" if patient_context else ""), question)
     auditlog.log_event("analyze", "assistant", "ok",
                        f"drugs recognized: {len(analysis['drugsMentioned'])}, "
                        f"drugs without a source: {len(analysis['drugsWithoutAgent'])}, "
@@ -169,7 +189,7 @@ async def ask(req: AskRequest):
         if agent["brand"] not in rules.get("allowedBrands", []):
             auditlog.log_event("skipped", agent["ansName"], "skipped", "brand not allowed by doctor's rules")
             return {**_base(agent), "status": "skipped", "reason": "Not on the doctor's allowed list."}
-        return await query_agent(agent, question)
+        return await query_agent(agent, question, patient_context)
 
     # attackers are only triggered via /attack/{type}; every other agent is checked in parallel
     results = list(await asyncio.gather(*[handle(a) for a in agents if a.get("role") != "attacker"]))
@@ -210,6 +230,38 @@ async def agents():
     verdicts = await asyncio.gather(*[asyncio.to_thread(is_agent_verified, a["ansName"], a["endpoint"]) for a in visible])
     return [{**_base(a), "role": a.get("role", "brand"), "endpoint": a["endpoint"], "verification": v}
             for a, v in zip(visible, verdicts)]
+
+
+def _brand_agents() -> list[dict]:
+    return [a for a in load_agents() if a.get("role") != "attacker" and a.get("drug")]
+
+
+@app.get("/agents/freshness")
+async def agents_freshness():
+    """How stale each brand agent's label is - the same threshold that governs
+    the background refresh in brand_agent/__main__.py, just surfaced here so the
+    UI can show it instead of only acting on it."""
+    agents_ = _brand_agents()
+    ages = await asyncio.gather(*[asyncio.to_thread(label_age_hours, a["drug"]) for a in agents_])
+    return [
+        {"agent": a["id"], "brand": a["brand"], "drug": a["drug"], "ageHours": age,
+         "maxAgeHours": DEFAULT_MAX_AGE_HOURS, "stale": age is None or age >= DEFAULT_MAX_AGE_HOURS}
+        for a, age in zip(agents_, ages)
+    ]
+
+
+@app.post("/agents/update/{drug}")
+async def agents_update(drug: str):
+    """Force a re-pull from live openFDA right now, regardless of staleness -
+    for the UI's "update now" action. Never raises on a fetch failure: it just
+    reports updated=false, same as the background refresh does."""
+    if drug not in {a["drug"] for a in _brand_agents()}:
+        raise HTTPException(404, f"No brand agent for drug '{drug}'.")
+    updated = await asyncio.to_thread(refresh_if_stale, drug, 0.0)
+    age = await asyncio.to_thread(label_age_hours, drug)
+    auditlog.log_event("label_updated" if updated else "label_update_failed", drug,
+                       "ok" if updated else "fail", "manual update from the UI")
+    return {"drug": drug, "updated": updated, "ageHours": age}
 
 
 @app.on_event("startup")
