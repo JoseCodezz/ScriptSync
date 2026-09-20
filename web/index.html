@@ -27,6 +27,12 @@
   <main class="chat">
     <div class="thread" id="thread" aria-live="polite"></div>
     <form class="composer" id="composer" autocomplete="off">
+      <details class="ctxbox" id="ctxbox">
+        <summary>+ Add patient context (optional)</summary>
+        <p class="hint" style="margin:8px 0">Non-identifying clinical details only — age range, renal/liver function, current medications. <b>No names, dates of birth, or other identifiers.</b> Used only for your next question, then cleared — never saved or logged.</p>
+        <textarea id="patientContext" rows="3" placeholder="Paste your filled-in template here, or type directly…" aria-label="Patient context (optional, not stored)"></textarea>
+        <a class="tmpl" href="patient-context-template.txt" download>Download a blank template (.txt)</a>
+      </details>
       <div class="inputrow">
         <textarea id="q" rows="1" placeholder="Ask about a drug or interaction…" aria-label="Your question"></textarea>
         <button class="btn" id="go" type="submit">Send</button>
@@ -66,6 +72,12 @@
       <p class="hint">What is live, cached, or simulated in this build.</p>
       <div class="card" id="clear"></div>
     </section>
+    <section id="p-data" hidden>
+      <p class="hint">Label agents pull from live openFDA occasionally, not on every question - each one checks in the background and refreshes past 24 hours old. This runs that check right now instead of waiting.</p>
+      <div class="g1" id="freshness"></div>
+      <button type="button" class="btn" id="updateAll" style="margin-top:14px">Update all now</button>
+      <p class="disc">A failed pull keeps serving the last good data - it never leaves an agent without an answer.</p>
+    </section>
   </div>
 </aside>
 
@@ -76,6 +88,7 @@
   <p class="disc">Two of four identity checks are live (DNS key + signed challenge); registry log and revocation are simulated; signing uses a demo key. Say so out loud during the demo.</p>
 </aside>
 <button type="button" class="demo-toggle" id="demoToggle" aria-pressed="false">Demo</button>
+<button type="button" class="data-toggle" id="dataToggle" data-panel="data" title="Agent data freshness"><span class="dot"></span><span class="lbl">Data</span></button>
 
 <script src="config.js"></script>
 <script src="app.js"></script>

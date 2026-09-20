@@ -42,6 +42,7 @@ wording from this, so keep it truthful.
   - `analysis`: `{drugsMentioned[], drugsWithoutAgent[], topics[], switching, adviceSeeking}`.
   - `gaps[]` also carries `{topic: "drug: <name>", message}` for a drug named in a switching question that has no verified source.
 - **No patient data**: `/ask`, `/attack/*` and `/handoff` return HTTP 400 if the text looks like it holds patient identifiers (SSN, phone, email, dates of birth, MRN, patient names, street addresses). Nothing is sent to an agent. The audit log never stores question text, only its length and a short fingerprint.
+- **`patientContext`** (optional, on `/ask` and forwarded to each agent's `/answer`): non-identifying clinical details only - age range, renal/liver function, current medications (see `web/patient-context-template.txt`). Run through the same PHI check as the question, so a pasted identifier is still refused. Never logged - not even a fingerprint of it, unlike the question - and never persisted client-side; the web UI clears the field the instant a question is sent.
 
 ## Question understanding (assistant/understand.py)
 Deterministic, no language model. Order of a `/ask`: PHI check, analyze, verify + ask agents (in parallel), merge, add drug gaps and notices.

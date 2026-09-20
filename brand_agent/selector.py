@@ -75,12 +75,12 @@ def _render_sections(sections: list[dict[str, Any]]) -> str:
 # vocabulary in assistant/merge.py so the fallback and the gap detector agree.
 TAG_SYNONYMS = {
     "CYP3A": ["cyp3a", "cyp 3a", "interaction", "interact", "co-prescribe", "coadminist",
-              "together", "combine", "concomitant"],
+              "together", "combine", "concomitant", "same time", "at once"],
     "interaction": ["interaction", "interact", "co-prescribe", "coadminist", "concomitant",
-                    "together", "combine"],
+                    "together", "combine", "same time", "at once"],
     "dosing": ["dose", "dosing", "dosage", "how much", "how often", "mg", "titrate", "start"],
     "indication": ["indicated", "indication", "treat", "used for", "approved for", "what is it for"],
-    "monitoring": ["monitor", "follow up", "follow-up", "labs", "lab test", "enzyme"],
+    "monitoring": ["monitor", "follow up", "follow-up", "labs", "lab test", "enzyme", "check", "watch"],
     "renal": ["kidney", "renal", "creatinine", "dialysis", "egfr", "crcl"],
     "liver": ["liver", "hepatic", "transaminase", "cirrhosis"],
     "older-adults": ["elderly", "older", "geriatric", "65", "75", "aged"],
@@ -122,15 +122,37 @@ def _other_names(text: str, drug_words: set[str]) -> set[str]:
             and not any(word.startswith(topic) for topic in TOPIC_WORDS)}
 
 
+_MED_LIST_LINE = re.compile(r"(?im)^\s*current medications\s*:\s*(.+)$")
+
+
+def _current_medications(patient_context: str | None) -> list[str]:
+    """Just the drug names out of a "Current medications: ..." line in patient
+    context (see web/patient-context-template.txt), if present. Deliberately
+    narrow - only the structured field a doctor was told to put drug names in,
+    not any other line of free text."""
+    if not patient_context:
+        return []
+    match = _MED_LIST_LINE.search(patient_context)
+    if not match:
+        return []
+    return [name.strip() for name in re.split(r"[,;]", match.group(1)) if len(name.strip()) >= 4]
+
+
 def keyword_select(question: str, sections: list[dict[str, Any]], drug: str | None = None,
-                   limit: int = 4) -> Selection:
+                   patient_context: str | None = None, limit: int = 4) -> Selection:
     """Deterministic fallback used when the model cannot be reached (or there is no API key).
 
-    A passage scores 2 for each of its topic tags the question asks about, and 1 for a distinctive word from its
-    title. The drug's own name never counts: every title mentions the drug, so matching on it made any question
-    that named the drug return the same passage. The best `limit` passages are returned, best first.
+    A passage scores 2 for each of its topic tags the question OR the patient context asks about
+    (patient context - age, renal/liver function, current medications, never an identifier, see
+    web/patient-context-template.txt - is matched the same way the question itself is: e.g. "Renal
+    function: severe impairment" hits the "renal" tag exactly like a clinician typing "renal" would),
+    and 1 for a distinctive word from its title. A named current medication scores 2 more when it
+    appears in a section's own verbatim TEXT, not just its title. The drug's own name never counts:
+    every title mentions the drug, so matching on it made any question that named the drug return the
+    same passage. The best `limit` passages are returned, best first.
     """
-    text = question.lower()
+    text = f"{question}\n{patient_context or ''}".lower()
+    meds = [name.lower() for name in _current_medications(patient_context)]
     drug_words = set(re.findall(r"[a-z]+", (drug or "").lower()))
     named = bool(drug) and _has(text, drug.lower())
     # "Can <this drug> be taken with <other drug>?": the other drug's name is not a topic, but if this label's own
@@ -155,6 +177,8 @@ def keyword_select(question: str, sections: list[dict[str, Any]], drug: str | No
         for word in set(re.findall(r"[a-z]{6,}", section["title"].lower())):
             if word not in drug_words and word not in GENERIC_TITLE_WORDS and _has(text, word):
                 score += 1
+        if any(_has(section["text"].lower(), med) for med in meds):
+            score += 2                                    # a current medication named in this section's own text
         if score:
             ranked.append((-score, order, section["section"]))
 
@@ -181,7 +205,7 @@ async def select(
 
     if not os.environ.get("ANTHROPIC_API_KEY"):
         # No key: do not attempt a model call that can only fail (it raised a TypeError on every question).
-        return keyword_select(question, sections, drug), "keyword-fallback (no ANTHROPIC_API_KEY)"
+        return keyword_select(question, sections, drug, patient_context), "keyword-fallback (no ANTHROPIC_API_KEY)"
 
     try:
         import anthropic
@@ -224,4 +248,4 @@ async def select(
             "Model selection failed (%s: %s); using keyword fallback",
             type(exc).__name__, exc,
         )
-        return keyword_select(question, sections, drug), f"keyword-fallback ({type(exc).__name__})"
+        return keyword_select(question, sections, drug, patient_context), f"keyword-fallback ({type(exc).__name__})"

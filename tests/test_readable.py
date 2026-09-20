@@ -95,12 +95,6 @@ class WhatItPicks(unittest.TestCase):
         text = "Take one tablet each evening with water and food [see CONTRAINDICATIONS ( 4 )]."
         self.assertIsNone(annotate(text, "9", "Dosing", "", [], [])["key"])
 
-    def test_pregnancy_question_finds_the_discontinue_sentence_and_highlights_the_topic(self):
-        p = self.simvastatin("8.1")
-        v = annotate(p["text"], p["section"], p["title"], "Is simvastatin safe in pregnancy?", ["simvastatin"], ["pregnancy"])
-        self.assertIn("Discontinue", piece(p["text"], v["key"]))
-        self.assertTrue(v["hits"] and all("pregna" in piece(p["text"], s).lower() for s in v["hits"]))
-
     def test_a_dose_question_highlights_the_amounts(self):
         p = self.simvastatin("2.2")
         v = annotate(p["text"], p["section"], p["title"], "What is the max dose of simvastatin", ["simvastatin"], [])

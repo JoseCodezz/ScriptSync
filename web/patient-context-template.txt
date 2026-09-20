@@ -1,0 +1,31 @@
+SCRIPTSYNC PATIENT CONTEXT
+==========================
+
+Fill in only what's relevant to your question, then paste this into the
+"Patient context" box before you ask. Delete any line you don't need.
+
+This is used only for the single question you're about to ask, then
+discarded. It is never saved, logged, or sent anywhere except to the label
+agents answering that one question.
+
+DO NOT INCLUDE:
+  - Patient name, initials, or date of birth
+  - Medical record number, insurance ID, or any other identifier
+  - Anything that could identify who this patient is
+
+DO INCLUDE (only if relevant to your question):
+  - Age range or life stage (e.g. "70-80", "elderly", "pediatric, age 8")
+  - Renal function (e.g. "normal", "mild impairment", "severe impairment", "dialysis")
+  - Liver function (e.g. "normal", "moderate-severe impairment")
+  - Pregnancy or breastfeeding status, if applicable
+  - Current medications (drug names only)
+  - Other relevant history, in your own words - still no identifiers
+
+--------------------------------------------------
+
+Age range:
+Renal function:
+Liver function:
+Pregnancy / breastfeeding:
+Current medications:
+Relevant history:

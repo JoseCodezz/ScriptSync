@@ -53,6 +53,13 @@ body.demo-on .app{margin-left:340px}
 .inputrow textarea::placeholder{color:var(--mut)}
 .fine{margin-top:8px;text-align:center;font-size:12px;color:var(--mut)}
 
+.ctxbox{border:1px dashed var(--line);border-radius:16px;padding:10px 14px;margin-bottom:10px}
+.ctxbox>summary{color:#b8adff;font-size:13px;font-weight:700;cursor:pointer}
+.ctxbox textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:12px;color:var(--tx);font:500 14px/1.5 'Manrope',sans-serif;padding:10px 12px;resize:vertical;margin-top:2px}
+.ctxbox textarea:focus-visible{border-color:#8b7bff;outline:0}
+.ctxbox .tmpl{display:inline-block;margin-top:8px;font-size:12px;font-weight:700;color:#b8adff;text-decoration:underline}
+.ctxbox .tmpl:hover{color:#fff}
+
 /* buttons, chips, cards */
 .btn{display:inline-block;border:0;border-radius:999px;padding:11px 24px;font:800 15px 'Manrope',sans-serif;cursor:pointer;color:#170d1f;background:var(--g)}
 .btn:hover{filter:brightness(1.1)}.btn.ghost{background:transparent;color:var(--tx);border:1px solid var(--line)}
@@ -137,6 +144,26 @@ input[type=time]{background:var(--bg);border:1px solid var(--line);border-radius
 .demo-toggle{position:fixed;left:12px;bottom:12px;z-index:35;background:var(--s1);border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:5px 12px;font:700 12px 'Manrope',sans-serif;cursor:pointer;opacity:.5}
 .demo-toggle:hover,.demo-toggle:focus-visible{opacity:1}
 body.demo-on .demo-toggle{display:none}
+
+/* corner data-freshness indicator */
+.data-toggle{position:fixed;right:12px;bottom:12px;z-index:35;display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:6px 14px 6px 10px;font:700 12px 'Manrope',sans-serif;cursor:pointer;opacity:.7}
+.data-toggle:hover,.data-toggle:focus-visible{opacity:1;border-color:#8b7bff;color:#fff}
+.data-toggle .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--ok);color:var(--ok);animation:softblink 2.6s ease-in-out infinite}
+.data-toggle.stale .dot{background:var(--bad);color:var(--bad);animation-duration:1.5s}
+@keyframes softblink{0%,100%{opacity:1;box-shadow:0 0 0 0 currentColor}50%{opacity:.4;box-shadow:0 0 7px 2px currentColor}}
+@media(prefers-reduced-motion:reduce){.data-toggle .dot{animation:none}}
+@media(max-width:640px){.data-toggle .lbl{display:none}.data-toggle{padding:8px}}
+
+/* per-agent freshness/update bar (Data panel) - named .ubar, not .bar, so it
+   doesn't collide with the header's unrelated <header class="bar">. At rest it
+   IS the status: full green when fresh, full red when it needs an update.
+   While an update runs, JS grows .fill's width toward ~90% and it turns solid
+   on completion - a real progress bar, not an indeterminate sweep. */
+.ubar{height:6px;border-radius:999px;background:var(--bg);margin-top:12px;overflow:hidden}
+.ubar .fill{height:100%;width:0;border-radius:999px;background:var(--g);transition:width .25s ease-out,background .3s}
+.ubar.fresh .fill{width:100%;background:var(--ok)}
+.ubar.stale .fill{width:100%;background:var(--bad)}
+@media(prefers-reduced-motion:reduce){.ubar .fill{transition:background .3s}}
 
 @media(max-width:900px){body.demo-on .app{margin-left:0}.demo{width:100%;z-index:45}}
 @media(max-width:640px){.bar{padding:10px 14px;gap:10px}.bar .ecg{display:none}.logo{font-size:17px}.tools{margin-left:0;order:3;width:100%;justify-content:space-between}.status{margin-left:auto;font-size:12px;padding:5px 10px}.demo-toggle{display:none}.thread{padding:18px 14px 8px}.composer{padding:8px 14px 12px}.msg.user{max-width:92%}.stats{grid-template-columns:1fr 1fr 1fr}}
