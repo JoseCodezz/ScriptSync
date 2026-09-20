@@ -25,8 +25,12 @@ from .service import build_app
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a single-label brand agent")
     parser.add_argument("--label", required=True, type=Path)
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, required=True)
+    # A host (Railway, Render, Fly) assigns the port through $PORT and expects
+    # the process to bind 0.0.0.0. Locally both default to loopback.
+    parser.add_argument("--host", default=os.environ.get("HOST") or
+                        ("0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"))
+    parser.add_argument("--port", type=int,
+                        default=int(os.environ["PORT"]) if os.environ.get("PORT") else None)
     parser.add_argument("--domain", default=os.environ.get("ANS_DOMAIN", "scriptsync.health"))
     parser.add_argument("--version", default="v1.0.0")
     args = parser.parse_args()
