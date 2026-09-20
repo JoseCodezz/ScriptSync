@@ -87,6 +87,22 @@ function alertCard(title, r) {
     <details><summary>Show what it tried to say</summary><div class="hid"><b>UNVERIFIED. Do not rely on this text.</b>\n${hidden}</div></details></div>`;
 }
 
+// ---------- GoDaddy ANS registry entry (informational; identity is proven by the live checks) ----------
+// The URL comes from the assistant, which only accepts GoDaddy's transparency host, and is escaped here as well.
+function registryPanel(reg) {
+  if (!reg) return "";   // not linked: say nothing rather than imply a registration
+  if (!reg.ok) return `<div class="regline"><span class="chip">GoDaddy ANS: lookup unavailable</span><div class="mono">${esc(reg.host)} · ${esc(reg.error)}</div></div>`;
+  return `<div class="regline"><span class="chip ok">✓ Registered in GoDaddy ANS</span>
+    <div class="mono">${esc(reg.ansName)} · registered as “${esc(reg.registeredName)}” · transparency-log entry #${esc(reg.leafIndex)} of ${esc(reg.treeSize)}</div>
+    <a class="reglink" href="${esc(reg.url)}" target="_blank" rel="noopener noreferrer">View the public log entry ↗</a>
+    <div class="mono">A public registration record. It does not prove this process is that agent; the live identity checks do.</div></div>`;
+}
+const registryOf = (agentId) => state.agents.find((a) => a.id === agentId)?.ansRegistry;
+function registryChip(agentId) {
+  const reg = registryOf(agentId);
+  return reg?.ok ? `<a class="chip v" href="${esc(reg.url)}" target="_blank" rel="noopener noreferrer" title="Public GoDaddy ANS registration: ${esc(reg.ansName)}">GoDaddy ANS ↗</a>` : "";
+}
+
 // ---------- chat: messages ----------
 const thread = $("#thread");
 const EMPTY = `<div class="empty-state" id="empty"><svg class="ecg" viewBox="0 0 220 54" preserveAspectRatio="none" aria-hidden="true"><path d="${BEAT}"/></svg>
@@ -165,7 +181,7 @@ function sourceColumn(s, seq, asked) {
   const glance = (s.answers || []).length > 1
     ? `<div class="glance">At a glance ${s.answers.map((a, i) => `<button type="button" data-jump="${esc(ids[i])}">§${esc(a.section)} ${esc(shortTitle(a.title))}</button>`).join("")}</div>` : "";
   return `<div class="src"><div class="srchead"><h4>${esc(s.brand)} label agent</h4>
-    <span class="chip ok">✓ Verified (${esc(modeLabel(s.verification?.mode))})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>${asked ? '<span class="chip v">Asked about</span>' : ""}
+    <span class="chip ok">✓ Verified (${esc(modeLabel(s.verification?.mode))})</span><span class="chip v">signed · ${esc(s.signature?.mode || "")}</span>${registryChip(s.agent)}${asked ? '<span class="chip v">Asked about</span>' : ""}
     <div class="mono">${esc(s.ansName)} · signed ${esc(s.timestamp || "?")}</div>${glance}
     <details class="how"><summary>Identity checks</summary><ul class="ck">${checkRows(s.verification)}</ul></details></div>
     ${(s.answers || []).map((a, i) => passageCard(a, ids[i])).join("")}</div>`;
@@ -394,8 +410,9 @@ async function loadAgents() {
     const v = a.verification;
     return `<div class="card"><h4>${esc(a.brand)} label agent</h4><div class="mono">${esc(a.ansName)}</div>
       <span class="chip ${v.ok ? "ok" : "bad"}">${v.ok ? "✓ identity ok" : "✕ identity failed"} (${esc(modeLabel(v.mode))})</span><span class="chip v">demo agent</span><span class="chip">not run by the manufacturer</span>
-      <ul class="ck">${checkRows(v)}</ul></div>`;
+      <ul class="ck">${checkRows(v)}</ul>${registryPanel(a.ansRegistry)}</div>`;
   }).join("") : '<div class="empty">No agents are configured.</div>';
+  renderTransparency();   // its ANS-registry row depends on what /agents just returned
 }
 
 const brandList = () => [...new Set(state.agents.map((a) => a.brand))];
@@ -470,11 +487,15 @@ function renderTransparency() {
   const label = state.sawPlaceholder ? ["bad", "Placeholder"] : state.sawAnswers ? ["ok", "Cached snapshot"] : ["", "Not seen yet"];
   const vd = h?.verificationDetail;
   const live = on && vd && (vd.live || []).length > 0;
+  const linked = state.agents.filter((a) => a.ansRegistry);
+  const registry = !linked.length ? ["", "Not linked"]
+    : linked.every((a) => a.ansRegistry.ok) ? ["ok", `Live · ${linked.length} linked`] : ["bad", "Lookup failed"];
   const rows = [
     ["The assistant", "Runs on this machine; this page reads it live", on ? ["ok", "Live · local"] : ["bad", "Offline"]],
     ["Identity: domain record + key possession", "Each agent's key is looked up in DNS, and the agent must sign a fresh challenge with that key",
       !on ? ["bad", "Offline"] : !live ? ["bad", "Simulated"] : vd.dnssecBypass ? ["bad", "Live · DNSSEC bypassed"] : ["ok", "Live"]],
-    ["Identity: registry log + revocation", "There is no public registration log or revocation registry yet, so these two checks are simulated and labelled as such", ["bad", "Simulated"]],
+    ["Identity: registry log + revocation", "Our verifier does not consult a registration log or revocation registry yet, so these two checks are simulated and labelled as such", ["bad", "Simulated"]],
+    ["GoDaddy ANS registry entry", "Each linked agent's public registration, read live from GoDaddy's transparency log. It is a public record, not a verdict: the live identity checks are what prove who is speaking", registry],
     ["Signatures", "HMAC-SHA256 with a shared demo key", ["bad", "Demo key"]],
     ["Label text", "Verbatim passages from public DailyMed / openFDA labels, saved ahead of time, with section and version. Only a hand-picked set of passages is served, so \"Not covered\" means outside those passages", label],
     ["Overlap and gaps", "Tag matching, no language model", ["ok", "Deterministic"]],
