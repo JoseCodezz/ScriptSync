@@ -1,0 +1,47 @@
+name: tests
+
+# Runs on every pull request and on pushes to develop/main, so a broken merge (conflict markers, a file that no
+# longer imports) is caught before anyone builds on it. It needs no secrets and no API keys.
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: No merge-conflict markers, no private keys, no API keys
+        run: |
+          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)( |$)' -- '*.py' '*.js' '*.ts' '*.json' '*.ps1' '*.sh' '*.yml'; then
+            echo "::error::unresolved merge-conflict markers"; exit 1
+          fi
+          # TODO: drop ':!certs' once the committed certs/ keys are purged from the repo and rotated.
+          if git grep -nE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----' -- . ':!*.md' ':!tests' ':!certs' ':!.github'; then
+            echo "::error::a private key is committed"; exit 1
+          fi
+          if git grep -nE 'sk-ant-[A-Za-z0-9_-]{20,}' -- . ':!.github'; then
+            echo "::error::an API key is committed"; exit 1
+          fi
+
+      - name: Everything compiles
+        run: python -m compileall -q assistant brand_agent common dev scripts tests
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t . -p "test_*.py"
+
+      - name: Brand agent checks
+        run: python -m tests.test_brand_agent
